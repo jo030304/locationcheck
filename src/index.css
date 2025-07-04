@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@keyframes stroke-fill {
+  from {
+    stroke-dashoffset: 298;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-stroke {
+  animation: stroke-fill 1s linear forwards;
+}
