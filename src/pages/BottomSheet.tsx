@@ -56,51 +56,52 @@ const BottomSheet = () => {
       }}
       className="absolute bottom-0 left-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50"
     >
-
-      {/* 드래그 핸들바 */}
       <div
-        className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4 touch-none"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-      />
+        className="w-full"
+      >
+        {/* 드래그 핸들바 */}
+        <div className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4 touch-none" />
 
-      {/* 상단 위치/프로필 */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <span
-            className="text-3xl cursor-pointer"
-            onClick={() => navigate('/location_permission')}
-          >
-            📍
-          </span>
-          <span className="font-bold text-2xl">전주시 덕진구</span>
+        {/* 상단 위치/프로필 */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <span
+              className="text-3xl cursor-pointer"
+              onClick={() => navigate('/location_permission')}
+            >
+              📍
+            </span>
+            <span className="font-bold text-2xl">전주시 덕진구</span>
+          </div>
+          <button
+            onClick={() => navigate('/my_profile')}
+            className="w-12 h-12 rounded-full bg-gray-300 cursor-pointer"
+          />
         </div>
-        <button
-          onClick={() => navigate('/my_profile')}
-          className="w-12 h-12 rounded-full bg-gray-300 cursor-pointer"
-        />
-      </div>
 
-      {/* 강아지 이미지 영역 */}
-      <div className="bg-gray-200 h-64 rounded-2xl mb-6 flex justify-center items-center">
-        <span className="text-gray-500 text-2xl">강아지 이미지</span>
-      </div>
+        {/* 강아지 이미지 영역 */}
+        <div className="bg-gray-200 h-64 rounded-2xl mb-6 flex justify-center items-center">
+          <span className="text-gray-500 text-2xl">강아지 이미지</span>
+        </div>
 
-      {/* 버튼 */}
-      <div className="flex flex-row gap-4 mb-8">
-        <button
-          className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
-          onClick={() => navigate('/walk_history_list')}
-        >
-          산책일지 보기
-        </button>
-        <button
-          className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
-          onClick={() => navigate('/walk_countdown', { state: { from: 'main' } })}
-        >
-          🐾 산책 시작하기
-        </button>
+        {/* 버튼 */}
+        <div className="flex flex-row gap-4 mb-8">
+          <button
+            className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
+            onClick={() => navigate('/walk_history_list')}
+          >
+            산책일지 보기
+          </button>
+          <button
+            className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
+            onClick={() => navigate('/walk_countdown', { state: { from: 'main' } })}
+          >
+            🐾 산책 시작하기
+          </button>
+        </div>
       </div>
 
       {/* 추천 코스 */}
@@ -114,7 +115,7 @@ const BottomSheet = () => {
             <div className="flex-1">
               <div
                 className="font-bold text-xl mb-1 hover:underline cursor-pointer"
-                onClick={() => navigate(`/course_selected_detail`, { state: { course } })}
+                onClick={() => navigate('/course_selected_detail', { state: { course } })}
               >
                 {course.name} 📍{course.score}
               </div>
