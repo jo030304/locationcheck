@@ -1,6 +1,6 @@
 import KakaoMap from "./KakaoMap";
 import Record from "./Record";
-import Function from "./function";
+import Operator from "./Operator";
 
 const Walk_new = () => {
   return (
