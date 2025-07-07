@@ -1,3 +1,10 @@
+type RegisterProps = {
+  message: string;
+  subMessage?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
 const Register = ({ message, subMessage, onConfirm, onCancel }: RegisterProps) => {
   return (
     <div
