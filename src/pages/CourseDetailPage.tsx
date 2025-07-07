@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 const CourseDetailPage = () => {
   const location = useLocation();
@@ -58,7 +58,7 @@ const CourseDetailPage = () => {
           onClick={() => navigate('/walk_countdown', { state: { from: 'exist' } })}>
           산책 시작
         </button>
-    </div>
+      </div>
     </div >
   );
 };
