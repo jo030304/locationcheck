@@ -8,7 +8,7 @@ const Walk_countdown = () => {
   const location = useLocation();
 
   useEffect(() => {
-    if (seconds <= 0) {
+    /*if (seconds <= 0) {
       const from = location.state?.from;
 
       if (from === 'exist') {
@@ -19,7 +19,9 @@ const Walk_countdown = () => {
         navigate('/');
       }
       return;
-    }
+    }*/
+
+    if (seconds <= 1) return;
 
     const timer = setInterval(() => {
       setSeconds((prev) => prev - 1);
@@ -50,7 +52,7 @@ const Walk_countdown = () => {
         </button>
 
         <div className="flex-grow flex items-center justify-center">
-          <div className="relative w-[240px] h-[240px] flex items-center justify-center">
+          <div className="absolute w-[240px] h-[240px] left-[67.5px] top-[193px] flex items-center justify-center">
             <svg
               key={seconds}
               className="absolute top-0 left-0 w-full h-full -rotate-90 z-30"
@@ -70,14 +72,13 @@ const Walk_countdown = () => {
               />
             </svg>
 
-            <div className="w-[230px] h-[230px] rounded-full border-[5px] border-[#E0F2D9] flex items-center justify-center z-10">
-              <p className="text-[110px]">{seconds}</p>
+            <div className="w-[230px] h-[230px] max-w-[57vw] max-h-[57vw] rounded-full border-[5px] border-[#E0F2D9] flex items-center justify-center z-10">
+              <p className="text-[110px] text-[min(110px,12vw)]">{seconds}</p>
             </div>
           </div>
         </div>
-
         <div className="flex justify-center mb-6 py-15">
-          <div className="w-[350px] h-[70px] rounded-4xl bg-[#E0F2D9] flex justify-center items-center gap-2 px-3 text-[20px]" style={{ color: "#4FA65B" }}>
+          <div className="absolute left-[39px] top-[667px] w-[299px] h-[55px] rounded-[50px] bg-[#E0F2D9] flex justify-center items-center gap-2 px-3 font-semibold text-[18px] text-[#4FA65B]">
             <i
               data-lucide="paw-print"
               style={{
@@ -89,6 +90,7 @@ const Walk_countdown = () => {
             ></i>
             <p>숨 한번 크게 쉬고, 출발 준비!</p>
           </div>
+
         </div>
       </div>
     </div>

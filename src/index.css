@@ -1,9 +1,14 @@
 @import "tailwindcss";
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @keyframes stroke-fill {
   from {
     stroke-dashoffset: 298;
   }
+
   to {
     stroke-dashoffset: 0;
   }
@@ -11,4 +16,8 @@
 
 .animate-stroke {
   animation: stroke-fill 1s linear forwards;
+}
+
+body {
+  font-family: 'Pretendard Variable', sans-serif;
 }
