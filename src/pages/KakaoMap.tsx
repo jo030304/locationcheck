@@ -1,3 +1,4 @@
+// 🟩 KakaoMap.tsx
 import { useEffect } from 'react';
 
 declare global {
@@ -6,7 +7,7 @@ declare global {
   }
 }
 
-const KakaoMap = () => {
+const KakaoMap = ({ children }: { children?: React.ReactNode }) => {
   useEffect(() => {
     const kakaoApiKey = import.meta.env.VITE_KAKAO_API_KEY;
 
@@ -34,7 +35,7 @@ const KakaoMap = () => {
             const markerContent = document.createElement('div');
             markerContent.innerHTML = `
               <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg"
-                width="20" height="20" viewBox="0 0 24 24" fill="none"
+                width="25" height="25" viewBox="0 0 24 24" fill="none"
                 stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 style="transform: rotate(0deg); transition: transform 0.3s ease;">
                 <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
@@ -58,14 +59,11 @@ const KakaoMap = () => {
 
                 const icon = markerContent.querySelector('#lucide-icon') as HTMLElement;
 
-                // 위치 이동
                 const newPos = new window.kakao.maps.LatLng(newLat, newLng);
                 customOverlay.setPosition(newPos);
-                map.setCenter(newPos); // 지도 중심 이동
+                map.setCenter(newPos);
 
-                // 방향 회전 - 속도 필터링 + 스무딩 처리
                 if (icon && heading !== null && !isNaN(heading) && speed !== null && speed > 0.5) {
-                  // 스무딩: 이전 heading과 현재 heading의 평균
                   const smoothed = lastHeading * 0.7 + heading * 0.3;
                   lastHeading = smoothed;
                   icon.style.transform = `rotate(${smoothed}deg)`;
@@ -75,8 +73,8 @@ const KakaoMap = () => {
                 console.error('위치 추적 실패:', err);
               },
               {
-                enableHighAccuracy: true,     // ✅ 고정밀 위치 사용
-                maximumAge: 100,              // ✅ 캐싱 거의 안 함
+                enableHighAccuracy: true,
+                maximumAge: 100,
                 timeout: 10000,
               }
             );
@@ -97,7 +95,13 @@ const KakaoMap = () => {
   }, []);
 
   return (
-    <div id="map" className="w-screen h-screen" />
+    <div className="relative w-screen h-screen">
+      <div id="map" className="w-full h-full z-0" />
+      {/* 지도 위에 덮을 children */}
+      <div className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none">
+        {children}
+      </div>
+    </div>
   );
 };
 
