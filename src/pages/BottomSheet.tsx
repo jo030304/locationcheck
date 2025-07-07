@@ -3,37 +3,37 @@ import React, { useRef, useState } from 'react';
 
 const BottomSheet = () => {
   const navigate = useNavigate();
-
   const sheetRef = useRef<HTMLDivElement>(null);
+
   const startY = useRef(0);
-  const tempDeltaY = useRef(0);
+  const lastTranslateY = useRef(0);
   const dragging = useRef(false);
-  const isMouse = useRef(false);
 
   const [translateY, setTranslateY] = useState(0);
+
+  const updatePosition = (deltaY: number) => {
+    const next = Math.min(Math.max(lastTranslateY.current + deltaY, 0), 300);
+    requestAnimationFrame(() => setTranslateY(next));
+  };
 
   const handleStart = (clientY: number) => {
     startY.current = clientY;
     dragging.current = true;
-    tempDeltaY.current = 0;
   };
 
   const handleMove = (clientY: number) => {
     if (!dragging.current) return;
     const deltaY = clientY - startY.current;
-
-    if (deltaY > 0 && deltaY < 300) {
-      tempDeltaY.current = deltaY;
-    }
+    updatePosition(deltaY);
   };
 
   const handleEnd = () => {
     dragging.current = false;
-    setTranslateY((prev) => Math.min(prev + tempDeltaY.current, 300));
+    lastTranslateY.current = translateY;
   };
 
+  // 마우스 이벤트
   const onMouseDown = (e: React.MouseEvent) => {
-    isMouse.current = true;
     handleStart(e.clientY);
 
     const onMouseMove = (moveEvent: MouseEvent) => {
@@ -50,11 +50,13 @@ const BottomSheet = () => {
     document.addEventListener('mouseup', onMouseUp);
   };
 
+  // 터치 이벤트
   const onTouchStart = (e: React.TouchEvent) => {
     handleStart(e.touches[0].clientY);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault(); // 브라우저 기본 동작 방지
     handleMove(e.touches[0].clientY);
   };
 
@@ -95,10 +97,8 @@ const BottomSheet = () => {
         onMouseDown={onMouseDown}
         className="w-full"
       >
-        {/* 드래그 핸들바 */}
         <div className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4 touch-none" />
 
-        {/* 상단 위치/프로필 */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
             <span
@@ -115,12 +115,10 @@ const BottomSheet = () => {
           />
         </div>
 
-        {/* 강아지 이미지 영역 */}
         <div className="bg-gray-200 h-64 rounded-2xl mb-6 flex justify-center items-center">
           <span className="text-gray-500 text-2xl">강아지 이미지</span>
         </div>
 
-        {/* 버튼 */}
         <div className="flex flex-row gap-4 mb-8">
           <button
             className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
@@ -137,14 +135,10 @@ const BottomSheet = () => {
         </div>
       </div>
 
-      {/* 추천 코스 */}
       <h2 className="text-2xl font-bold mb-4">우리 동네 추천코스</h2>
       <div className="space-y-6">
         {courseList.map((course, idx) => (
-          <div
-            key={idx}
-            className="flex justify-between items-start border-b pb-4 gap-4"
-          >
+          <div key={idx} className="flex justify-between items-start border-b pb-4 gap-4">
             <div className="flex-1">
               <div
                 className="font-bold text-xl mb-1 hover:underline cursor-pointer"
