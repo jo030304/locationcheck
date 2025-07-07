@@ -19,23 +19,22 @@ const KakaoMap = () => {
         const container = document.getElementById('map');
         if (!container) return;
 
+        let lastHeading = 0;
+
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
-            const options = {
+            const map = new window.kakao.maps.Map(container, {
               center: new window.kakao.maps.LatLng(lat, lng),
               level: 3,
-            };
+            });
 
-            const map = new window.kakao.maps.Map(container, options);
-
-            // 직접 삽입한 Lucide SVG 아이콘
             const markerContent = document.createElement('div');
             markerContent.innerHTML = `
               <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg"
-                width="32" height="32" viewBox="0 0 24 24" fill="none"
+                width="8" height="8" viewBox="0 0 24 24" fill="none"
                 stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 style="transform: rotate(0deg); transition: transform 0.3s ease;">
                 <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
@@ -52,32 +51,38 @@ const KakaoMap = () => {
 
             navigator.geolocation.watchPosition(
               (pos) => {
-                const heading = pos.coords.heading;
                 const newLat = pos.coords.latitude;
                 const newLng = pos.coords.longitude;
-
-                customOverlay.setPosition(
-                  new window.kakao.maps.LatLng(newLat, newLng)
-                );
+                const heading = pos.coords.heading;
+                const speed = pos.coords.speed;
 
                 const icon = markerContent.querySelector('#lucide-icon') as HTMLElement;
-                if (icon && heading !== null && !isNaN(heading)) {
-                  icon.style.transform = `rotate(${heading}deg)`;
+
+                // 위치 이동
+                const newPos = new window.kakao.maps.LatLng(newLat, newLng);
+                customOverlay.setPosition(newPos);
+                map.setCenter(newPos); // 지도 중심 이동
+
+                // 방향 회전 - 속도 필터링 + 스무딩 처리
+                if (icon && heading !== null && !isNaN(heading) && speed !== null && speed > 0.5) {
+                  // 스무딩: 이전 heading과 현재 heading의 평균
+                  const smoothed = lastHeading * 0.7 + heading * 0.3;
+                  lastHeading = smoothed;
+                  icon.style.transform = `rotate(${smoothed}deg)`;
                 }
               },
               (err) => {
                 console.error('위치 추적 실패:', err);
               },
               {
-                enableHighAccuracy: false,
-                maximumAge: 5000,
+                enableHighAccuracy: true,     // ✅ 고정밀 위치 사용
+                maximumAge: 100,              // ✅ 캐싱 거의 안 함
                 timeout: 10000,
               }
             );
           },
           (error) => {
             console.error('위치 정보를 가져오는 데 실패했습니다.', error);
-
             const fallbackOptions = {
               center: new window.kakao.maps.LatLng(37.5665, 126.9780),
               level: 3,
