@@ -27,7 +27,6 @@ const BottomSheet = () => {
 
   const handleTouchEnd = () => {
     dragging.current = false;
-    setTranslateY(0);
   };
 
   const courseList = [
