@@ -1,4 +1,8 @@
+import { useNavigate } from 'react-router-dom';
+
 const BottomSheet = () => {
+  const navigate = useNavigate();
+
   const courseList = [
     {
       name: '오솔길 코스',
