@@ -6,27 +6,60 @@ const BottomSheet = () => {
 
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
-  const currentY = useRef(0);
-  const [translateY, setTranslateY] = useState(0);
+  const tempDeltaY = useRef(0);
   const dragging = useRef(false);
+  const isMouse = useRef(false);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY;
+  const [translateY, setTranslateY] = useState(0);
+
+  const handleStart = (clientY: number) => {
+    startY.current = clientY;
     dragging.current = true;
+    tempDeltaY.current = 0;
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handleMove = (clientY: number) => {
     if (!dragging.current) return;
-    currentY.current = e.touches[0].clientY;
-    const deltaY = currentY.current - startY.current;
+    const deltaY = clientY - startY.current;
 
-    if (deltaY > 3 && deltaY < 300) {
-      setTranslateY(deltaY);
+    if (deltaY > 0 && deltaY < 300) {
+      tempDeltaY.current = deltaY;
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleEnd = () => {
     dragging.current = false;
+    setTranslateY((prev) => Math.min(prev + tempDeltaY.current, 300));
+  };
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    isMouse.current = true;
+    handleStart(e.clientY);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      handleMove(moveEvent.clientY);
+    };
+
+    const onMouseUp = () => {
+      handleEnd();
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    handleStart(e.touches[0].clientY);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    handleMove(e.touches[0].clientY);
+  };
+
+  const onTouchEnd = () => {
+    handleEnd();
   };
 
   const courseList = [
@@ -51,14 +84,15 @@ const BottomSheet = () => {
       ref={sheetRef}
       style={{
         transform: `translateX(-50%) translateY(${translateY}px)`,
-        transition: dragging.current ? 'none' : 'transform 0.3s ease',
+        transition: 'transform 0.3s ease',
       }}
       className="absolute bottom-0 left-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50"
     >
       <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
         className="w-full"
       >
         {/* 드래그 핸들바 */}
