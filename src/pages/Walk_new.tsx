@@ -8,7 +8,7 @@ const Walk_new = () => {
       <KakaoMap>
         <Record />
         <div className="absolute bottom-0 w-full flex justify-center">
-          <Function />
+          <Operator />
         </div>
       </KakaoMap>
     </div>
