@@ -4,7 +4,7 @@ import { CgPlayPauseO } from "react-icons/cg";
 import { MdWaterDrop } from "react-icons/md";
 import Register from "./Register";
 
-const Operator = () => {
+const Operator = ({ onMark }: { onMark: () => void }) => {
   const [shadowModal, setShowModal] = useState(false);
 
   const handleConfirm = () => {
@@ -44,12 +44,13 @@ const Operator = () => {
 
         {/* 가운데 마킹 버튼 */}
         <div className="absolute flex flex-col items-center top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
-          <button className="flex flex-col items-center justify-center bg-[#4FA65B] w-[10vh] h-[10vh] rounded-full cursor-pointer">
+          <button
+            onClick={onMark}
+            className="flex flex-col items-center justify-center bg-[#4FA65B] w-[10vh] h-[10vh] rounded-full cursor-pointer"
+          >
             <MdWaterDrop className="w-[5vh] h-[5vh] text-white" />
           </button>
-          <span className="mt-[0.5vh] text-[15px] font-bold text-[#4FA65B]">
-            마킹
-          </span>
+          <span className="mt-[0.5vh] text-[15px] font-bold text-[#4FA65B]">마킹</span>
         </div>
       </div>
 
