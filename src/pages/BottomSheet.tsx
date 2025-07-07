@@ -1,11 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import React, { useRef, useState } from 'react';
 
-type BottomSheetProps = {
-  onMarkRequest: () => void;
-};
-
-const BottomSheet = ({ onMarkRequest }: BottomSheetProps) => {
+const BottomSheet = () => {
   const navigate = useNavigate();
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -135,16 +131,6 @@ const BottomSheet = ({ onMarkRequest }: BottomSheetProps) => {
             onClick={() => navigate('/walk_countdown', { state: { from: 'main' } })}
           >
             🐾 산책 시작하기
-          </button>
-        </div>
-
-        {/* ✅ 마킹 버튼 예시 (원하는 위치에 추가 가능) */}
-        <div className="flex justify-center mb-6">
-          <button
-            onClick={onMarkRequest}
-            className="px-6 py-3 bg-yellow-400 rounded-xl text-white font-bold"
-          >
-            현재 위치에 마커 찍기
           </button>
         </div>
       </div>
