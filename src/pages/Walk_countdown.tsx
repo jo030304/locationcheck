@@ -8,7 +8,7 @@ const Walk_countdown = () => {
   const location = useLocation();
 
   useEffect(() => {
-    /*if (seconds <= 0) {
+    if (seconds <= 0) {
       const from = location.state?.from;
 
       if (from === 'exist') {
@@ -19,9 +19,7 @@ const Walk_countdown = () => {
         navigate('/');
       }
       return;
-    }*/
-
-    if (seconds <= 1) return;
+    }
 
     const timer = setInterval(() => {
       setSeconds((prev) => prev - 1);
