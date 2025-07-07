@@ -19,9 +19,13 @@ const BottomSheet = () => {
       tags: ['#감성', '#퇴근길', '#풍경'],
     },
   ];
+
   return (
-    <div className="bottom-0 left-0 right-0 max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[70%] overflow-y-auto">
+    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50">
+      {/* 드래그 핸들바 */}
       <div className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4" />
+
+      {/* 상단 위치/프로필 */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <span
@@ -38,10 +42,12 @@ const BottomSheet = () => {
         />
       </div>
 
+      {/* 강아지 이미지 영역 */}
       <div className="bg-gray-200 h-64 rounded-2xl mb-6 flex justify-center items-center">
         <span className="text-gray-500 text-2xl">강아지 이미지</span>
       </div>
 
+      {/* 버튼 */}
       <div className="flex flex-row gap-4 mb-8">
         <button
           className="flex-1 py-4 border-2 border-gray-500 rounded-xl font-semibold cursor-pointer"
@@ -57,6 +63,7 @@ const BottomSheet = () => {
         </button>
       </div>
 
+      {/* 추천 코스 */}
       <h2 className="text-2xl font-bold mb-4">우리 동네 추천코스</h2>
       <div className="space-y-6">
         {courseList.map((course, idx) => (
@@ -65,8 +72,10 @@ const BottomSheet = () => {
             className="flex justify-between items-start border-b pb-4 gap-4"
           >
             <div className="flex-1">
-              <div className="font-bold text-xl mb-1 hover:underline cursor-pointer"
-                onClick={() => navigate(`/course_selected_detail`, { state: { course: course } })}>
+              <div
+                className="font-bold text-xl mb-1 hover:underline cursor-pointer"
+                onClick={() => navigate(`/course_selected_detail`, { state: { course } })}
+              >
                 {course.name} 📍{course.score}
               </div>
               <div className="text-lg text-gray-600 mb-1">
@@ -74,9 +83,7 @@ const BottomSheet = () => {
               </div>
               <div className="text-lg text-gray-500">
                 {course.tags.map((tag) => (
-                  <span key={tag} className="mr-2">
-                    {tag}
-                  </span>
+                  <span key={tag} className="mr-2">{tag}</span>
                 ))}
               </div>
             </div>
@@ -87,7 +94,7 @@ const BottomSheet = () => {
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default BottomSheet
+export default BottomSheet;

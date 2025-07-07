@@ -34,7 +34,7 @@ const KakaoMap = () => {
             const markerContent = document.createElement('div');
             markerContent.innerHTML = `
               <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg"
-                width="8" height="8" viewBox="0 0 24 24" fill="none"
+                width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 style="transform: rotate(0deg); transition: transform 0.3s ease;">
                 <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
@@ -96,7 +96,9 @@ const KakaoMap = () => {
     document.head.appendChild(script);
   }, []);
 
-  return <div id="map" style={{ width: '100%', height: '100%' }} />;
+  return (
+    <div id="map" className="w-screen h-screen" />
+  );
 };
 
 export default KakaoMap;
