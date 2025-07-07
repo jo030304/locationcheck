@@ -51,11 +51,12 @@ const BottomSheet = () => {
     <div
       ref={sheetRef}
       style={{
-        transform: `translate(-50%, ${translateY}px)`,
+        transform: `translateX(-50%) translateY(${translateY}px)`,
         transition: dragging.current ? 'none' : 'transform 0.3s ease',
       }}
-      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50"
+      className="absolute bottom-0 left-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50"
     >
+
       {/* 드래그 핸들바 */}
       <div
         className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4 touch-none"
