@@ -20,7 +20,7 @@ const BottomSheet = () => {
     currentY.current = e.touches[0].clientY;
     const deltaY = currentY.current - startY.current;
 
-    if (deltaY > 0 && deltaY < 300) {
+    if (deltaY > 3 && deltaY < 300) {
       setTranslateY(deltaY);
     }
   };
