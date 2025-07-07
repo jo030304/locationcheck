@@ -99,7 +99,9 @@ const KakaoMap = ({ children }: { children?: React.ReactNode }) => {
       <div id="map" className="w-full h-full z-0" />
       {/* 지도 위에 덮을 children */}
       <div className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none">
-        {children}
+        <div className="pointer-events-auto">
+          {children}
+        </div>
       </div>
     </div>
   );
