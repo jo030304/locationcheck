@@ -1,7 +1,34 @@
 import { useNavigate } from 'react-router-dom';
+import React, { useRef, useState } from 'react';
 
 const BottomSheet = () => {
   const navigate = useNavigate();
+
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const currentY = useRef(0);
+  const [translateY, setTranslateY] = useState(0);
+  const dragging = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+    dragging.current = true;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return;
+    currentY.current = e.touches[0].clientY;
+    const deltaY = currentY.current - startY.current;
+
+    if (deltaY > 0 && deltaY < 300) {
+      setTranslateY(deltaY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    dragging.current = false;
+    setTranslateY(0);
+  };
 
   const courseList = [
     {
@@ -21,9 +48,21 @@ const BottomSheet = () => {
   ];
 
   return (
-    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50">
+    <div
+      ref={sheetRef}
+      style={{
+        transform: `translate(-50%, ${translateY}px)`,
+        transition: dragging.current ? 'none' : 'transform 0.3s ease',
+      }}
+      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-lg h-[65%] overflow-y-auto z-50"
+    >
       {/* 드래그 핸들바 */}
-      <div className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4" />
+      <div
+        className="w-12 h-1 bg-gray-400 rounded-full mx-auto mb-4 touch-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      />
 
       {/* 상단 위치/프로필 */}
       <div className="flex justify-between items-center mb-6">
