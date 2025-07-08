@@ -5,14 +5,17 @@ import Operator from "./Operator";
 
 const Walk_new = () => {
   const [markRequested, setMarkRequested] = useState(false);
+  const [distance, setDistance] = useState(0);
 
   return (
     <div>
       <KakaoMap
         markRequested={markRequested}
         onMarkHandled={() => setMarkRequested(false)}
+        drawingEnabled={true}
+        onDistanceChange={setDistance}
       >
-        <Record />
+        <Record distance={distance} />
         <div className="absolute bottom-0 w-full flex justify-center">
           <Operator onMark={() => setMarkRequested(true)} />
         </div>

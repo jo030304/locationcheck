@@ -15,6 +15,7 @@ const HomePage = () => {
       <KakaoMap
         markRequested={markRequested}
         onMarkHandled={handleMark}
+        drawingEnabled={false}
       >
         <BottomSheet />
       </KakaoMap>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MdWaterDrop } from "react-icons/md";
 import { renderToString } from "react-dom/server";
 
@@ -12,13 +12,70 @@ const KakaoMap = ({
   markRequested,
   onMarkHandled,
   children,
+  drawingEnabled = true,
+  onDistanceChange,
+  walkId,
 }: {
   markRequested: boolean;
   onMarkHandled: () => void;
   children?: React.ReactNode;
+  drawingEnabled?: boolean;
+  onDistanceChange?: (dist: number) => void;
+  walkId: string;
 }) => {
   const mapRef = useRef<any>(null);
   const currentPosRef = useRef<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number }[]>([]);
+  const prevPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [totalDistance, setTotalDistance] = useState(0);
+
+  function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371e3;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+    const φ1 = toRad(lat1);
+    const φ2 = toRad(lat2);
+    const Δφ = toRad(lat2 - lat1);
+    const Δλ = toRad(lng2 - lng1);
+
+    const a =
+      Math.sin(Δφ / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // m
+  }
+
+  function interpolateColor(color1: string, color2: string, factor: number): string {
+    const hexToRgb = (hex: string) => {
+      const parsed = hex.replace('#', '');
+      return [
+        parseInt(parsed.substring(0, 2), 16),
+        parseInt(parsed.substring(2, 4), 16),
+        parseInt(parsed.substring(4, 6), 16),
+      ];
+    };
+
+    const rgbToHex = (r: number, g: number, b: number) =>
+      `#${[r, g, b]
+        .map((x) => {
+          const hex = Math.round(x).toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        })
+        .join('')}`;
+
+    const c1 = hexToRgb(color1);
+    const c2 = hexToRgb(color2);
+
+    const result = [
+      c1[0] + (c2[0] - c1[0]) * factor,
+      c1[1] + (c2[1] - c1[1]) * factor,
+      c1[2] + (c2[2] - c1[2]) * factor,
+    ];
+
+    return rgbToHex(result[0], result[1], result[2]);
+  }
 
   // ✅ 지도 초기화 및 내 위치 화살표 마커
   useEffect(() => {
@@ -71,13 +128,49 @@ const KakaoMap = ({
               const newLat = pos.coords.latitude;
               const newLng = pos.coords.longitude;
               const heading = pos.coords.heading;
-              const speed = pos.coords.speed;
+              const speed = pos.coords.speed ?? 0;
 
-              currentPosRef.current = { lat: newLat, lng: newLng };
+              const newCoord = { lat: newLat, lng: newLng };
+              setCoordinates((prev) => [...prev, newCoord]);
+              currentPosRef.current = newCoord;
+
+              const newPos = new window.kakao.maps.LatLng(newLat, newLng);
+              const prevCoord = prevPosRef.current;
+
+              // ✅ 속도 km/h 단위 변환 + 색상 결정
+              const speedKmh = speed * 3.6;
+              const minSpeed = 0;
+              const maxSpeed = 6; // 6km/h 이상이면 완전 주황
+              const clampedSpeed = Math.min(Math.max(speedKmh, minSpeed), maxSpeed);
+              const factor = (clampedSpeed - minSpeed) / (maxSpeed - minSpeed);
+
+              const color = interpolateColor('#4FA65B', '#FFAC74', factor);
+
+
+              if (prevCoord && drawingEnabled) {
+                const prevPos = new window.kakao.maps.LatLng(prevCoord.lat, prevCoord.lng);
+
+                const polyline = new window.kakao.maps.Polyline({
+                  path: [prevPos, newPos],
+                  strokeWeight: 7,
+                  strokeColor: color,
+                  strokeOpacity: 0.9,
+                  strokeStyle: 'solid',
+                });
+
+                polyline.setMap(mapRef.current);
+
+                const segmentDist = calculateDistance(prevCoord.lat, prevCoord.lng, newCoord.lat, newCoord.lng);
+                setTotalDistance((prev) => {
+                  const updated = prev + segmentDist;
+                  onDistanceChange?.(updated); // ✅ 외부 전달
+                  return updated;
+                });
+              }
+
+              prevPosRef.current = newCoord; // ✅ 이전 위치 갱신
 
               const icon = markerContent.querySelector('#lucide-icon') as HTMLElement;
-              const newPos = new window.kakao.maps.LatLng(newLat, newLng);
-
               customOverlay.setPosition(newPos);
               map.setCenter(newPos);
 
@@ -146,7 +239,7 @@ const KakaoMap = ({
 
       const customOverlay = new window.kakao.maps.CustomOverlay({
         position: pos,
-        content: markerDiv,
+        content: markerDiv.firstElementChild as HTMLElement,
         yAnchor: 1,
         zIndex: 5,
       });
@@ -156,6 +249,29 @@ const KakaoMap = ({
       onMarkHandled();
     }
   }, [markRequested]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { lat, lng } = currentPosRef.current;
+      if (lat && lng) {
+        const payload = {
+          walkId, // 꼭 전달받은 값이어야 함
+          lat,
+          lng,
+          timestamp: new Date().toISOString(), // 또는 pos.timestamp 사용 가능
+        };
+
+        fetch(`/api/walks/${walkId}/coordinate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch((err) => console.error('좌표 전송 실패:', err));
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [walkId]);
+
 
   return (
     <div className="relative w-screen h-screen">
