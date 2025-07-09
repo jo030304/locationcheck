@@ -260,7 +260,7 @@ const KakaoMap = ({
   }, [markRequested]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    /*const interval = setInterval(() => {
       const { lat, lng } = currentPosRef.current;
       if (lat && lng) {
         const payload = {
@@ -278,7 +278,7 @@ const KakaoMap = ({
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(interval);*/
   }, [walkId]);
 
 
