@@ -150,23 +150,32 @@ const KakaoMap = ({
               if (prevCoord && drawingEnabled) {
                 const prevPos = new window.kakao.maps.LatLng(prevCoord.lat, prevCoord.lng);
 
-                const polyline = new window.kakao.maps.Polyline({
-                  path: [prevPos, newPos],
-                  strokeWeight: 7,
-                  strokeColor: color,
-                  strokeOpacity: 0.9,
-                  strokeStyle: 'solid',
-                });
-
-                polyline.setMap(mapRef.current);
-
                 const segmentDist = calculateDistance(prevCoord.lat, prevCoord.lng, newCoord.lat, newCoord.lng);
+
                 setTotalDistance((prev) => {
                   const updated = prev + segmentDist;
                   onDistanceChange?.(updated); // ✅ 외부 전달
+
+                  // ✅ 거리 기준 색상 결정
+                  let color = '#4FA65B'; // 기본 초록
+                  if (updated > 4500) {
+                    color = '#FF6B6B'; // 빨강
+                  }
+
+                  // ✅ 폴리라인 그리기
+                  const polyline = new window.kakao.maps.Polyline({
+                    path: [prevPos, newPos],
+                    strokeWeight: 7,
+                    strokeColor: color,
+                    strokeOpacity: 0.9,
+                    strokeStyle: 'solid',
+                  });
+                  polyline.setMap(mapRef.current);
+
                   return updated;
                 });
               }
+
 
               prevPosRef.current = newCoord; // ✅ 이전 위치 갱신
 
