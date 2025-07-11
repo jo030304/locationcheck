@@ -2,19 +2,30 @@ import { useState } from "react";
 import { BsStopCircleFill } from "react-icons/bs";
 import { CgPlayPauseO } from "react-icons/cg";
 import { MdWaterDrop } from "react-icons/md";
-import Register from "./Register";
+import EndButton from "./EndButton";
+import StopButton from "./StopButton";
+import { useNavigate } from "react-router-dom";
 
 const Operator = ({ onMark }: { onMark: () => void }) => {
+  const [shadowModal1, setShowModal1] = useState(false);
   const [shadowModal, setShowModal] = useState(false);
+  const navigate = useNavigate();
 
   const handleConfirm = () => {
-    console.log("코스 등록 진행 중...");
     setShowModal(false);
+    setShowModal1(false);
+    navigate("/koricopter?result=yes");
   };
 
   const handleCancel = () => {
-    console.log("코스 등록 취소됨.");
     setShowModal(false);
+    setShowModal1(false);
+    navigate("/koricopter?result=no");
+  };
+
+  // ✅ StopButton 전용 Confirm (navigate 없음)
+  const handlePauseConfirm = () => {
+    setShowModal1(false);
   };
 
   return (
@@ -22,7 +33,10 @@ const Operator = ({ onMark }: { onMark: () => void }) => {
       {/* 하얀 박스 */}
       <div className="absolute bottom-0 left-0 right-0 border border-gray-300 rounded-2xl bg-white h-[12vh] flex justify-around items-center px-4 z-10">
         {/* 왼쪽 버튼 */}
-        <button className="flex-1 flex flex-col items-center justify-center">
+        <button
+          onClick={() => setShowModal1(true)}
+          className="flex-1 flex flex-col items-center justify-center"
+        >
           <CgPlayPauseO className="w-[6vh] h-[6vh] text-[#CCCCCC] cursor-pointer" />
           <span className="mt-[0.7vh] text-[1.5vh] text-[#CCCCCC] font-semibold">
             일시정지
@@ -50,16 +64,25 @@ const Operator = ({ onMark }: { onMark: () => void }) => {
           >
             <MdWaterDrop className="w-[5vh] h-[5vh] text-white" />
           </button>
-          <span className="mt-[0.5vh] text-[15px] font-bold text-[#4FA65B]">마킹</span>
+          <span className="mt-[0.5vh] text-[15px] font-bold text-[#4FA65B]">
+            마킹
+          </span>
         </div>
       </div>
 
       {shadowModal && (
-        <Register
+        <EndButton
           message="코스를 등록할까요?"
-          subMessage="이웃에게 나만의 산책멍소가 공유됩니다."
+          subMessage={`이웃에게 나만의 산책 멍소가 공유됩니다.`}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
+        />
+      )}
+
+      {shadowModal1 && (
+        <StopButton
+          subMessage={`일시정지 중 코스에서 멀리 이동하면\n꼬리콥터를 흔들 수 없어요.\n코스로 돌아와서 재시작 해주세요.`}
+          onConfirm={handlePauseConfirm} // ✅ 수정됨
         />
       )}
     </div>

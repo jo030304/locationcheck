@@ -2,10 +2,9 @@ type RegisterProps = {
   message: string;
   subMessage?: string;
   onConfirm: () => void;
-  onCancel: () => void;
 };
 
-const Register = ({ message, subMessage, onConfirm, onCancel }: RegisterProps) => {
+const Save = ({ message, subMessage, onConfirm }: RegisterProps) => {
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50"
@@ -16,22 +15,21 @@ const Register = ({ message, subMessage, onConfirm, onCancel }: RegisterProps) =
           <div className="flex flex-col gap-3 leading-relaxed">
             <p className="text-[18px] font-semibold leading-snug">{message}</p>
             {subMessage && (
-              <p className="text-[16px] text-[#616160] leading-relaxed">{subMessage}</p>
+              <p
+                className="text-sm text-[#616160] leading-relaxed"
+                style={{ whiteSpace: "pre-line" }}
+              >
+                {subMessage}
+              </p>
             )}
           </div>
 
           <div className="flex gap-4 w-full">
             <button
-              onClick={onCancel}
-              className="w-[135px] h-[48px] bg-[#CCCCCC] rounded-xl text-white text-[16px] font-medium cursor-pointer"
-            >
-              아니요
-            </button>
-            <button
               onClick={onConfirm}
-              className="w-[135px] h-[48px] bg-[#4FA65B] text-white rounded-xl text-[16px] font-medium cursor-pointer"
+              className="w-[300px] h-[48px] bg-[#4FA65B] text-white rounded-xl text-[16px] font-medium cursor-pointer"
             >
-              예
+              확인
             </button>
           </div>
         </div>
@@ -40,4 +38,4 @@ const Register = ({ message, subMessage, onConfirm, onCancel }: RegisterProps) =
   );
 };
 
-export default Register;
+export default Save;

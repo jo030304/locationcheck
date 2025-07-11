@@ -46,18 +46,21 @@ export default function BottomSheet() {
       <div className="h-full flex flex-col justify-between">
         {/* 스크롤 가능한 콘텐츠 */}
         <div className="flex-1 overflow-y-auto px-4">
-          {/* 상단: 위치, 마이페이지 */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate('/my_profile')}
-                className="w-10 h-10 rounded-full bg-gray-300 cursor-pointer"
-              />
-            </div>
-          </div>
           {/* 추천 코스 */}
           <h2 className="text-lg font-semibold mb-2">우리 동네 추천코스</h2>
-          <p className="text-sm text-gray-500 mb-2">까미를 위한 추천</p>
+          {/* 프로필 + 추천 텍스트 */}
+          <div className="flex items-center gap-2 mb-4 mt-10">
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border border-[#CCCCCC] overflow-hidden">
+              <img
+                onClick={() => navigate("/my_profile")}
+                src="/기본 마이 프로필.png"
+                alt="profile"
+                className="w-6 h-6 object-contain cursor-pointer"
+              />
+            </div>
+            <p className="text-sm text-gray-500">까미를 위한 추천</p>
+          </div>
+
 
           <div className="flex gap-4 overflow-x-auto pb-4">
             {courseList.map((course, idx) => (
