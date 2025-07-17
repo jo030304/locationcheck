@@ -47,7 +47,7 @@ const Animal_Settings = () => {
       {/* 헤더 */}
       <div className="relative flex items-center mb-6">
         <FaChevronLeft className="text-gray-600 cursor-pointer" />
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-semibold text-gray-800">
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800">
           반려견에 대해 알려주세요!
         </h1>
       </div>
