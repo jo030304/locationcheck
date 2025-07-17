@@ -44,7 +44,7 @@ const Walk_countdown = () => {
       <div className="w-full max-w-[430px] bg-white text-gray-800 text-xl flex flex-col overflow-auto relative px-4">
         <button
           className="absolute top-3 left-3 px-3 py-1 rounded text-3xl text-gray-400 cursor-pointer"
-          onClick={() => navigate('/')}
+          onClick={() => navigate(-1)}
         >
           {'<'}
         </button>
@@ -52,7 +52,6 @@ const Walk_countdown = () => {
         <div className="flex-grow flex items-center justify-center">
           <div className="relative w-[240px] h-[240px] flex items-center justify-center">
             <svg
-              key={seconds}
               className="absolute top-0 left-0 w-full h-full -rotate-90 z-30"
               viewBox="0 0 100 100"
             >
@@ -63,8 +62,8 @@ const Walk_countdown = () => {
                 fill="none"
                 stroke="#4FA65B"
                 strokeWidth="4"
-                strokeDasharray="310"
-                strokeDashoffset="298"
+                strokeDasharray="295"
+                strokeDashoffset="0"
                 className="animate-stroke"
                 strokeLinecap="round"
               />

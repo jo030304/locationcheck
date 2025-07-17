@@ -1,6 +1,14 @@
 import { FaMapMarkerAlt } from "react-icons/fa";
+import { useEffect, useState } from "react";
 
 export default function LocationButton() {
+  const [cityDistrict, setCityDistrict] = useState<string>("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("selected_address_cityDistrict");
+    if (stored) setCityDistrict(stored);
+  }, []);
+
   return (
     <div
       className="mx-7 my-3 border border-gray-300 rounded-4xl p-3 bg-[#FFFFFF] text-[#232323]
@@ -8,7 +16,9 @@ export default function LocationButton() {
     >
       <div className="flex items-center px-4">
         <FaMapMarkerAlt className="text-[#4FA65B] text-xl sm:text-2xl" />
-        <span className="ml-2">전주시 덕진구</span>
+        <span className="ml-2">
+          {cityDistrict || "지역을 선택하세요"}
+        </span>
       </div>
     </div>
   );

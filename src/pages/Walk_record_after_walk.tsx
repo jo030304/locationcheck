@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import Save from "./Save";
 import { useNavigate } from "react-router-dom";
+import { useRecoilValue } from "recoil";
+import { nameState } from "../atoms/animalInfoAtoms";
 
 const Walk_record_after_walk = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -12,12 +14,13 @@ const Walk_record_after_walk = () => {
     setIsSaved(true); // ✅ 저장 완료 상태 반영
   };
 
+  const name = useRecoilValue(nameState);
   return (
     <div className="w-full h-screen max-w-sm mx-auto bg-[#FEFFFA] rounded-xl shadow-lg px-6 py-8 relative">
       {/* 닫기 버튼 */}
       <button
-      onClick={() => navigate("/")}
-      className="absolute top-4 right-4 text-gray-400 text-xl font-bold cursor-pointer">×</button>
+        onClick={() => navigate("/homepage")}
+        className="absolute top-4 right-4 text-gray-400 text-xl font-bold cursor-pointer">×</button>
 
       {/* 날짜 */}
       <p className="text-[22px] font-semibold mb-4">2025. 05. 03 (토)</p>
@@ -32,7 +35,7 @@ const Walk_record_after_walk = () => {
           />
         </div>
         <p className="text-[17px] font-semibold">
-          <span className="text-[#4FA65B]">까미</span>와 함께한 오솔길 코스
+          <span className="text-[#4FA65B]">{name || "반려견"}</span>와 함께한 오솔길 코스
         </p>
       </div>
 
@@ -62,11 +65,10 @@ const Walk_record_after_walk = () => {
         <button
           onClick={() => setShowSaveModal(true)}
           disabled={isSaved} // ✅ 버튼 비활성화
-          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${
-            isSaved
-              ? "bg-gray-400 text-white cursor-default"
-              : "bg-[#4FA65B] text-white cursor-pointer"
-          }`}
+          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${isSaved
+            ? "bg-gray-400 text-white cursor-default"
+            : "bg-[#4FA65B] text-white cursor-pointer"
+            }`}
         >
           {isSaved ? "등록 완료" : "산책일지 저장하기"} {/* ✅ 버튼 텍스트 변경 */}
         </button>

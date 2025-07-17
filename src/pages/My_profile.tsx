@@ -2,19 +2,34 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SlArrowLeft } from 'react-icons/sl';
 import { FaSearch } from 'react-icons/fa';
+import { useRecoilValue, useSetRecoilState } from "recoil";
+import { nameState, breedState, birthState, sizeState } from "../atoms/animalInfoAtoms";
 
 const My_profile = () => {
   const navigate = useNavigate();
 
-  const [name, setName] = useState('까미');
-  const [breed, setBreed] = useState('닥스훈트');
-  const [birth, setBirth] = useState('241110');
-  const [size, setSize] = useState<'소형' | '중형' | '대형'>('소형');
+  const nameDefault = useRecoilValue(nameState);
+  const breedDefault = useRecoilValue(breedState);
+  const birthDefault = useRecoilValue(birthState);
+  const sizeDefault = useRecoilValue(sizeState);
+
+  const setNameGlobal = useSetRecoilState(nameState);
+  const setBreedGlobal = useSetRecoilState(breedState);
+  const setBirthGlobal = useSetRecoilState(birthState);
+  const setSizeGlobal = useSetRecoilState(sizeState);
+
+  const [name, setName] = useState(nameDefault);
+  const [breed, setBreed] = useState(breedDefault);
+  const [birth, setBirth] = useState(birthDefault);
+  const [size, setSize] = useState<'소형' | '중형' | '대형'>(sizeDefault);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
     setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setTimeout(() => {
+      setSaved(false);
+      navigate(-1); // ✅ 완료 누르면 이전 페이지로 이동
+    }, 1000); // 저장 메시지 표시 후 이동
   };
 
   return (
@@ -60,7 +75,10 @@ const My_profile = () => {
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameGlobal(e.target.value); // ✅ 전역 상태 반영
+          }}
           className="w-full p-3 border border-[#CCCCCC] rounded-md text-[16px]"
         />
       </div>
@@ -74,7 +92,10 @@ const My_profile = () => {
           <input
             type="text"
             value={breed}
-            onChange={(e) => setBreed(e.target.value)}
+            onChange={(e) => {
+              setBreed(e.target.value);
+              setBreedGlobal(e.target.value);
+            }}
             className="w-full p-3 border border-[#CCCCCC] rounded-md text-[16px] pr-10"
           />
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -89,7 +110,10 @@ const My_profile = () => {
         <input
           type="text"
           value={birth}
-          onChange={(e) => setBirth(e.target.value)}
+          onChange={(e) => {
+            setBirth(e.target.value);
+            setBirthGlobal(e.target.value);
+          }}
           className="w-full p-3 border border-[#CCCCCC] rounded-md text-[16px]"
           placeholder="YYMMDD"
         />
@@ -108,13 +132,15 @@ const My_profile = () => {
           ].map((option) => (
             <button
               key={option.label}
-              onClick={() => setSize(option.label as '소형' | '중형' | '대형')}
-              className={`flex-1 p-2 text-sm border rounded-md transition
-                ${
-                  size === option.label
-                    ? 'bg-[#E0F2D9] border-[#498952] text-[#498952]'
-                    : 'border-[#CCCCCC] text-[#232323]'
-                }`}
+              onClick={() => {
+                setSize(option.label as '소형' | '중형' | '대형');
+                setSizeGlobal(option.label as '소형' | '중형' | '대형');
+              }}
+              className={`flex-1 p-2 text-sm border rounded-md transition ${
+                size === option.label
+                  ? 'bg-[#E0F2D9] border-[#498952] text-[#498952]'
+                  : 'border-[#CCCCCC] text-[#232323]'
+              }`}
             >
               <div className="font-medium">{option.label}</div>
               <div className="text-xs text-[#ADADAD]">({option.desc})</div>

@@ -18,7 +18,7 @@ const CourseDetailPage = () => {
       <div className="w-full max-w-[430px] bg-white text-gray-800 text-xl">
         <div className="w-full bg-gray-200 h-70 relative flex justify-center items-center">
           <button className="absolute top-3 left-3 px-3 py-1 rounded text-3xl cursor-pointer"
-            onClick={() => navigate('/')}>
+            onClick={() => navigate(-1)}>
             {'<'}
           </button>
           <div className="text-center text-blue-500 text-[23px]" style={{ color: '#3B82F6' }}>

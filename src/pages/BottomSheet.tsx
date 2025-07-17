@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useRecoilValue } from 'recoil'; // ✅ Recoil에서 값 읽기
+import { nameState } from '../atoms/animalInfoAtoms'; // ✅ Atom import
 
 export default function BottomSheet() {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
+  const name = useRecoilValue(nameState); // ✅ 이름 불러오기
 
   const courseList = [
     {
@@ -58,9 +61,11 @@ export default function BottomSheet() {
                 className="w-6 h-6 object-contain cursor-pointer"
               />
             </div>
-            <p className="text-sm text-gray-500">까미를 위한 추천</p>
+            <p className="text-[17px] font-semibold">
+              <span className="text-[#4FA65B] inline">{name || "반려견"}</span>
+              와 함께한 즐거운 산책!
+            </p>
           </div>
-
 
           <div className="flex gap-4 overflow-x-auto pb-4">
             {courseList.map((course, idx) => (

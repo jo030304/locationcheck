@@ -6,16 +6,16 @@
 
 @keyframes stroke-fill {
   from {
-    stroke-dashoffset: 298;
+    stroke-dashoffset: 0;
   }
 
   to {
-    stroke-dashoffset: 0;
+    stroke-dashoffset: 295;
   }
 }
 
 .animate-stroke {
-  animation: stroke-fill 1s linear forwards;
+  animation: stroke-fill 3s linear forwards;
 }
 
 body {
