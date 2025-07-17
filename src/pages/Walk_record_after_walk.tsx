@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Save from "./Save";
 import { useNavigate } from "react-router-dom";
 import { useRecoilValue } from "recoil";
-import { nameState } from "../atoms/animalInfoAtoms";
+import { nameState } from "../hooks/animalInfoAtoms";
 
 const Walk_record_after_walk = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);

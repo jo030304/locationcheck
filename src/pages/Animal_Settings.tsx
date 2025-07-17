@@ -6,7 +6,7 @@ import {
   breedState,
   birthState,
   sizeState
-} from "../atoms/animalInfoAtoms";
+} from "../hooks/animalInfoAtoms";
 
 import { FaChevronLeft, FaSearch } from "react-icons/fa";
 import Resister from "../hooks/Resister"; // ✅ 모달 컴포넌트 불러오기

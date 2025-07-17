@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { SlArrowLeft } from 'react-icons/sl';
 import { FaSearch } from 'react-icons/fa';
 import { useRecoilValue, useSetRecoilState } from "recoil";
-import { nameState, breedState, birthState, sizeState } from "../atoms/animalInfoAtoms";
+import { nameState, breedState, birthState, sizeState } from "../hooks/animalInfoAtoms";
 
 const My_profile = () => {
   const navigate = useNavigate();

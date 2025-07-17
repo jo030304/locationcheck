@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRecoilValue } from 'recoil'; // ✅ Recoil에서 값 읽기
-import { nameState } from '../atoms/animalInfoAtoms'; // ✅ Atom import
+import { nameState } from '../hooks/animalInfoAtoms'; // ✅ Atom import
 
 export default function BottomSheet() {
   const [expanded, setExpanded] = useState(false);
