@@ -5,11 +5,12 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import Mypage from './pages/Mypage';
 import Walk_new from './pages/Walk_new';
+
 import CourseDetailPage from './pages/CourseDetailPage';
 import Walk_existing from './pages/Walk_existing';
 import Walk_countdown from './pages/Walk_countdown'
 import NotFoundPage from './pages/NotFoundPage';
-import Koricopter from './pages/koricopter';
+import Koricopter from './pages/Koricopter';
 import Course_create_detail from './pages/Course_create_detail';
 import Walk_record_after_walk_ from './pages/Walk_record_after_walk';
 import My_profile from './pages/My_profile';
