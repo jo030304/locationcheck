@@ -11,7 +11,7 @@ declare global {
 }
 
 const LoginPage = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // ✅ Hook은 컴포넌트 최상단에서만 호출
 
   useEffect(() => {
     if (window.Kakao && !window.Kakao.isInitialized()) {
@@ -32,7 +32,7 @@ const LoginPage = () => {
           url: "/v2/user/me",
           success: function (res: any) {
             console.log("👤 사용자 정보:", res);
-            window.location.href = "/agree_ment";
+            navigate("/agree_ment"); // ✅ React Router 방식으로 이동
           },
           fail: function (err: any) {
             console.error("❌ 사용자 정보 요청 실패", err);

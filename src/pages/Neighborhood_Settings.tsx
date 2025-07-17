@@ -59,7 +59,7 @@ const Neighborhood_Settings = () => {
           onClick={() => navigate("/agree_ment")}
           className="text-gray-600 z-10 cursor-pointer"
         />
-        <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold text-gray-800">
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-gray-800">
           산책할 동네를 설정해 주세요!
         </h1>
       </div>
