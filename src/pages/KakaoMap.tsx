@@ -55,6 +55,7 @@ const KakaoMap = forwardRef(function KakaoMap(
   const polylineRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const childrenWrapperRef = useRef<HTMLDivElement>(null);
+  const initialPosRef = useRef(initialPosition);
 
   // 전역 위치 상태 구독
   const globalLocation = useRecoilValue(currentLocationState);
@@ -313,15 +314,14 @@ const KakaoMap = forwardRef(function KakaoMap(
 
   // removed speed-based color interpolation for now to reduce lints
 
-  // ✅ 지도 초기화 및 내 위치 화살표 마커
-  const initialPosRef = useRef(initialPosition);
-
   useEffect(() => {
-    const pos = initialPosRef.current;
-    let initialLat = 36.5;
-    let initialLng = 127.5;
-    let initialLevel = 13;
+    if (!window.kakao?.maps) return;
+    const container = document.getElementById('map');
+    if (!container) return;
+    if (mapRef.current) return; // 이미 만들어졌으면 스킵 (보조 가드)
 
+    const pos = initialPosRef.current; // 마운트 시점의 값만 사용
+    let initialLat = 36.5, initialLng = 127.5, initialLevel = 13;
     if (pos) {
       initialLat = pos.lat;
       initialLng = pos.lng;
@@ -334,53 +334,38 @@ const KakaoMap = forwardRef(function KakaoMap(
       level: initialLevel,
     });
     mapRef.current = map;
-    console.log('🗺️ 지도 초기화 완료:', initialPosition ? '현재 위치' : '한반도 뷰');
 
-    // 초기 위치가 있으면 마커 생성
-    if (initialPosition) {
+    if (pos) {
       const markerContent = document.createElement('div');
       markerContent.innerHTML = `
-        <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg"
-          width="25" height="25" viewBox="0 0 24 24" fill="none"
-          stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          style="transform: rotate(0deg); transition: transform 0.3s ease;">
-          <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
-        </svg>
-      `;
-
-      const customOverlay = new window.kakao.maps.CustomOverlay({
-        position: new window.kakao.maps.LatLng(initialPosition.lat, initialPosition.lng),
+      <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg); transition: transform 0.3s ease;">
+        <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
+      </svg>`;
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: new window.kakao.maps.LatLng(pos.lat, pos.lng),
         content: markerContent,
         yAnchor: 1,
       });
-
-      customOverlay.setMap(map);
-      customOverlayRef.current = customOverlay;
+      overlay.setMap(map);
+      customOverlayRef.current = overlay;
     }
 
-    mapInitializedRef.current = true;
-
-    // 3. 탭 전환 감지 - 돌아왔을 때 현재 위치로 이동
     const handleVisibilityChange = () => {
       if (!document.hidden && mapRef.current && currentPosRef.current.lat !== 0) {
-        console.log('📱 탭으로 돌아옴 - 현재 위치로 이동');
-        const pos = new window.kakao.maps.LatLng(
-          currentPosRef.current.lat,
-          currentPosRef.current.lng
+        // 원치 않으면 이 panTo 제거해도 됨
+        mapRef.current.panTo(
+          new window.kakao.maps.LatLng(currentPosRef.current.lat, currentPosRef.current.lng)
         );
-        mapRef.current.panTo(pos);
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // cleanup 함수
     return () => {
-      console.log('🧹 KakaoMap cleanup');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      mapInitializedRef.current = false;
+      // 여기에서 mapInitializedRef.current = false 같은 건 쓰지 마!
     };
-  }, []);
+  }, []); // ← 의존성 비워서 '딱 1번만' 초기화
+
 
   // ✅ 전역 위치 변경 감지
   useEffect(() => {
