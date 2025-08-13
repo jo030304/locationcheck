@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes stroke-fill {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 295;
+  }
+}
+
+.animate-stroke {
+  animation: stroke-fill 3s linear forwards;
+}
+
+body {
+  font-family: 'Pretendard Variable', sans-serif;
+}
