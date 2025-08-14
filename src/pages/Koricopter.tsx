@@ -258,8 +258,8 @@ function ScoreFX({
           <Drop
             style={{
               position: 'absolute',
-              top: 280,
-              right: '25%',
+              top: 180,
+              right: '5%',
               width: 40,
               height: 40,
               filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.12))',
@@ -354,7 +354,7 @@ const Koricopter = () => {
     if (!showMessage) return;
     setScoreState(score);
     if (walkRecordId) {
-      saveTailcopterScore(walkRecordId, score).catch(() => {});
+      saveTailcopterScore(walkRecordId, score).catch(() => { });
     }
     const navTimer = setTimeout(() => {
       if (result === 'yes') navigate('/course_create_detail');
@@ -465,7 +465,7 @@ const Koricopter = () => {
           null
         )}
         <div className="w-full flex justify-center">
-          <div className="w-[75%] sm:w-[72%] max-w-[520px]">
+          <div className="w-full max-w-[360px] sm:max-w-[420px]">
             <CustomSlider value={sliderValue} onChange={handleSliderChange} />
           </div>
         </div>
