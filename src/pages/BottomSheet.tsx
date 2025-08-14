@@ -8,6 +8,7 @@ import { getMyWalkRecords } from '../services/users';
 import StartWalkButton from './StartWalkButton';
 import MyLocationButton from './MyLocationButton';
 import type { KakaoMapHandle } from './KakaoMap';
+import Profile from '../hooks/Profile';
 
 type Props = {
   /** 부모(맵을 렌더하는 곳)에서 내려주는 kakaoMap ref */
@@ -213,9 +214,7 @@ export default function BottomSheet({ mapRef }: Props) {
             {/* 추천 코스 섹션 */}
             <div className="mb-5">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span onClick={() => navigate('/my_profile')} className="text-sm cursor-pointer">🐕</span>
-                </div>
+                <Profile basePadding={2} />
                 <p className="text-[13px] text-gray-600">
                   <span className="font-medium text-gray-900">{name || '반려견'}</span>를 위한 추천
                 </p>
@@ -277,13 +276,15 @@ export default function BottomSheet({ mapRef }: Props) {
                 <h2 className="text-[15px] font-semibold text-gray-800 mt-4 mb-3">산책일지</h2>
 
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span onClick={() => navigate('/my_profile')} className="text-sm cursor-pointer">🐕</span>
-                  </div>
+                  <Profile basePadding={2}
+                  />
                   <p className="text-[13px] text-gray-600">
                     <span className="font-medium text-gray-900">{name || '반려견'}</span>의 산책 일지
                   </p>
-                  <span className="ml-auto text-[11px] text-gray-400 cursor-pointer">모두보기 ›</span>
+                  <span
+                    onClick={() => navigate('/walk_records')}
+                    className="ml-auto text-[11px] text-gray-400 cursor-pointer">모두보기 ›
+                  </span>
                 </div>
 
                 <div className="flex gap-2.5 overflow-x-auto scrollbar-hide">

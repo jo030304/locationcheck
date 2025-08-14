@@ -14,7 +14,7 @@ declare global {
 type PlaceItem = {
   addressName: string;
   roadAddressName: string;
-  locationId: string | null; // ✅ 통일된 키
+  locationId: string | null;
   city?: string;
   areaName?: string;
   province?: string;
@@ -42,7 +42,6 @@ const Neighborhood_Settings = () => {
       const res = await searchLocations(keyword);
       const list = (res?.data ?? res ?? []) as any[];
 
-      // ✅ 응답 정규화
       const normalized: PlaceItem[] = list.map((p: any) => {
         const addressName = p.addressName ?? p.address_name ?? '';
         const roadAddressName = p.roadAddressName ?? p.road_address_name ?? '';
@@ -56,8 +55,7 @@ const Neighborhood_Settings = () => {
         };
       });
       setPlaces(normalized);
-    } catch (e) {
-      // fallback: 카카오 클라이언트 검색 (여긴 ID 없음)
+    } catch {
       if (window.kakao?.maps?.services) {
         const ps = new window.kakao.maps.services.Places();
         ps.keywordSearch(keyword, (data: any[], status: string) => {
@@ -81,28 +79,22 @@ const Neighborhood_Settings = () => {
     setQuery(address);
     setPlaces([]);
 
-    // city/areaName 우선, 없으면 문자열에서 추론
     const cityDistrict =
-      (place.city && place.areaName)
+      place.city && place.areaName
         ? `${place.city} ${place.areaName}`
         : (() => {
             const parts = address.split(' ');
             return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : address;
           })();
 
-    // 로컬 저장
     localStorage.setItem('selected_address_full', address);
     localStorage.setItem('selected_address_cityDistrict', cityDistrict);
 
-    // 백엔드 전송 (주소 문자열은 항상, ID는 있을 때만)
     const payload: any = {
       preferredAddressFull: address,
       preferredAddressCityDistrict: cityDistrict,
     };
     if (place.locationId) payload.preferredLocationId = place.locationId;
-
-    console.log('선택 주소(표시용):', address);
-    console.log('locationId(저장용, 있을 때만):', place.locationId ?? '(없음)');
 
     try {
       await updateProfile(payload);
@@ -120,20 +112,20 @@ const Neighborhood_Settings = () => {
   };
 
   return (
-    <div className="relative z-0 min-h-screen bg-[#FEFFFA] p-5 flex flex-col">
-      {/* 🔒 고정 배경 이미지 (워터마크) */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 flex items-center justify-center">
+    <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] p-5 flex flex-col overscroll-contain">
+      {/* 🔒 가운데 고정 워터마크 */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 grid place-items-center">
         <img
           src="/동네 설정 사진.png"
           alt=""
-          className="w-[230px] h-[230px] object-contain opacity-20"
+          className="w-[230px] h-[230px] object-contain opacity-20 select-none"
         />
       </div>
 
       {/* 헤더 */}
       <div className="relative flex items-center mb-6">
         <FaChevronLeft
-          onClick={() => navigate('/agree_ment')}
+          onClick={() => navigate(-1)}
           className="text-gray-600 z-10 cursor-pointer"
         />
         <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800">
@@ -154,10 +146,7 @@ const Neighborhood_Settings = () => {
             placeholder="지번, 도로명, 건물명 검색"
             className="w-full bg-white px-4 pr-10 h-12 rounded-lg border border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2"
           />
-          <span
-            className="pointer-events-none absolute inset-y-0 right-3 flex items-center"
-            aria-hidden="true"
-          >
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
             <SlMagnifier className="text-gray-400" />
           </span>
         </div>
@@ -182,7 +171,6 @@ const Neighborhood_Settings = () => {
         )}
       </div>
 
-      {/* 하단 여유 공간(필요 시 유지) */}
       <div className="flex-1" />
     </div>
   );

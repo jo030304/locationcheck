@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 're
 import { MdWaterDrop } from 'react-icons/md';
 import { renderToString } from 'react-dom/server';
 import { useRecoilValue } from 'recoil';
-import { currentLocationState } from '../hooks/walkAtoms';
+import { currentLocationState, walkPausedState } from '../hooks/walkAtoms';
 import { takeScreenshot } from '@xata.io/screenshot';
 
 declare global {
@@ -59,6 +59,7 @@ const KakaoMap = forwardRef(function KakaoMap(
 
   // 전역 위치 상태 구독
   const globalLocation = useRecoilValue(currentLocationState);
+  const paused = useRecoilValue(walkPausedState);
 
   // 로딩 상태 추가
   const [isLocationLoading, setIsLocationLoading] = useState(!initialPosition && !globalLocation);
@@ -377,6 +378,9 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     if (!globalLocation || !mapRef.current) return;
 
+    // ⏸️ 일시정지면 위치/거리/경로 업데이트 전부 무시 (초기 로딩 끝난 이후)
+    if (paused && !isLocationLoading) return;
+
     const { lat, lng } = globalLocation;
     currentPosRef.current = { lat, lng };
 
@@ -418,7 +422,8 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     // 경로 그리기
     const prevCoord = prevPosRef.current;
-    if (prevCoord && drawingEnabled && mapRef.current) {
+    const drawingActive = drawingEnabled && !paused;
+    if (prevCoord && drawingActive && mapRef.current) {
       const prevPos = new window.kakao.maps.LatLng(prevCoord.lat, prevCoord.lng);
       const segmentDist = calculateDistance(prevCoord.lat, prevCoord.lng, lat, lng);
 
@@ -442,7 +447,7 @@ const KakaoMap = forwardRef(function KakaoMap(
 
         prevPosRef.current = newCoord;
       }
-    } else if (!prevCoord && drawingEnabled) {
+    } else if (!prevCoord && drawingActive) {
       // 첫 위치 설정 (산책 시작 시)
       prevPosRef.current = newCoord;
       onPathUpdate?.(newCoord);

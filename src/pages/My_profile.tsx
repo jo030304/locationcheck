@@ -10,6 +10,7 @@ import {
   sizeState,
 } from '../hooks/animalInfoAtoms';
 import { getMyProfile, updateProfile } from '../services/users';
+import SearchDog from './SearchDog';
 
 const My_profile = () => {
   const navigate = useNavigate();
@@ -30,6 +31,11 @@ const My_profile = () => {
   const [size, setSize] = useState<'소형' | '중형' | '대형'>(sizeDefault);
   const [saved, setSaved] = useState(false);
 
+  // ✅ Recoil 전역 값이 바뀌면 입력창에도 반영
+  useEffect(() => {
+    setBreed(breedDefault);
+  }, [breedDefault]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -47,7 +53,7 @@ const My_profile = () => {
           };
           setSize(map[profile.petSize] || sizeDefault);
         }
-      } catch (e) {}
+      } catch (e) { }
     })();
   }, []);
 
@@ -64,7 +70,7 @@ const My_profile = () => {
         petBirthDate: birth,
         petSize: toSize(size),
       });
-    } catch (e) {}
+    } catch (e) { }
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
@@ -82,7 +88,7 @@ const My_profile = () => {
         />
         <h1 className="text-[19px] font-medium text-[#232323]">프로필</h1>
         <button
-          className="absolute right-0 text-sm text-[#498952] border border-[#498952] px-3 py-1 rounded-full"
+          className="absolute right-0 text-sm text-[#498952] border border-[#498952] px-3 py-1 rounded-full cursor-pointer"
           onClick={handleSave}
         >
           완료
@@ -136,7 +142,8 @@ const My_profile = () => {
               setBreed(e.target.value);
               setBreedGlobal(e.target.value);
             }}
-            className="w-full p-3 border border-[#CCCCCC] rounded-md text-[16px] pr-10"
+            className="w-full p-3 border border-[#CCCCCC] rounded-md text-[16px] pr-10 cursor-pointer"
+            onClick={() => navigate('/search_dog')}
           />
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
         </div>
@@ -176,11 +183,10 @@ const My_profile = () => {
                 setSize(option.label as '소형' | '중형' | '대형');
                 setSizeGlobal(option.label as '소형' | '중형' | '대형');
               }}
-              className={`flex-1 p-2 text-sm border rounded-md transition ${
-                size === option.label
+              className={`flex-1 p-2 text-sm border rounded-md transition ${size === option.label
                   ? 'bg-[#E0F2D9] border-[#498952] text-[#498952]'
-                  : 'border-[#CCCCCC] text-[#232323]'
-              }`}
+                  : 'border-[#CCCCCC] text-[#232323] cursor-pointer'
+                }`}
             >
               <div className="font-medium">{option.label}</div>
               <div className="text-xs text-[#ADADAD]">({option.desc})</div>

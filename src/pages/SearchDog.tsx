@@ -1,12 +1,14 @@
+// SearchDog.tsx
 import { useEffect, useRef, useState } from "react";
 import { FaChevronLeft } from "react-icons/fa";
 import { SlMagnifier } from "react-icons/sl";
 import { useNavigate } from "react-router-dom";
+import { useSetRecoilState } from "recoil";
+import { breedState } from "../hooks/animalInfoAtoms";
 import { searchBreeds } from "../services/onboarding";
 
 type BreedItem = { breedId: string; name: string; iconUrl?: string };
 
-// 하이라이트 유틸
 const escapeReg = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const Highlight = ({ text, query }: { text: string; query: string }) => {
   const q = query.trim();
@@ -18,8 +20,10 @@ const Highlight = ({ text, query }: { text: string; query: string }) => {
   return (
     <>
       {parts.map((part, i) =>
-        tokens.some(t => part.toLowerCase() === t.toLowerCase()) ? (
-          <span key={i} className="text-[#4FA65B]">{part}</span>
+        tokens.some((t) => part.toLowerCase() === t.toLowerCase()) ? (
+          <span key={i} className="text-[#4FA65B]">
+            {part}
+          </span>
         ) : (
           <span key={i}>{part}</span>
         )
@@ -30,6 +34,7 @@ const Highlight = ({ text, query }: { text: string; query: string }) => {
 
 const SearchDog = () => {
   const navigate = useNavigate();
+  const setBreedGlobal = useSetRecoilState(breedState);
 
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<BreedItem[]>([]);
@@ -38,7 +43,7 @@ const SearchDog = () => {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  // 클릭 밖 감지 → 리스트 닫기
+  // 바깥 클릭 → 목록 닫기
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
@@ -72,21 +77,20 @@ const SearchDog = () => {
     };
   }, [query]);
 
-  // 항목 선택
   const choose = (item: BreedItem | null) => {
     if (item) {
       localStorage.setItem("selected_breed", item.name);
       localStorage.setItem("selected_breed_id", item.breedId);
+      setBreedGlobal(item.name);    // ✅ 전역 상태 업데이트
     } else {
-      // 믹스/기타
       localStorage.setItem("selected_breed", "믹스견/기타");
       localStorage.removeItem("selected_breed_id");
+      setBreedGlobal("믹스견/기타"); // ✅ 전역 상태 업데이트
     }
     setOpen(false);
-    navigate(-1); // 필요하면 다른 경로로 수정
+    navigate(-1);
   };
 
-  // 키보드 탐색
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (!open || items.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -104,13 +108,16 @@ const SearchDog = () => {
   };
 
   return (
-    <div className="relative z-0 min-h-screen bg-[#FEFFFA] flex flex-col px-4 pt-4">
-      {/* 🔒 고정 배경 이미지 (워터마크) */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 flex items-center justify-center">
+    <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] px-4 pt-4 overscroll-contain">
+      {/* 🔒 가운데 고정 워터마크 */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 grid place-items-center"
+      >
         <img
           src="/동네 설정 사진.png"
           alt=""
-          className="w-[230px] h-[230px] object-contain opacity-20"
+          className="w-[230px] h-[230px] object-contain opacity-20 select-none"
         />
       </div>
 
@@ -145,7 +152,6 @@ const SearchDog = () => {
           </span>
         </div>
 
-        {/* places 스타일 리스트 + 하이라이트 */}
         {open && items.length > 0 && (
           <ul className="w-full mt-2 space-y-1">
             {items.map((b, idx) => (
@@ -158,10 +164,6 @@ const SearchDog = () => {
                 <p className="text-sm text-black">
                   <Highlight text={b.name} query={query} />
                 </p>
-                {/* 필요 시 보조 텍스트
-                <p className="text-xs text-gray-500 mt-2 mb-3">
-                  <Highlight text={b.englishName ?? ''} query={query} />
-                </p> */}
               </li>
             ))}
           </ul>
@@ -174,17 +176,22 @@ const SearchDog = () => {
         )}
       </div>
 
-      {/* 하단 버튼 */}
-      <div className="flex-1" />
-      <div className="flex justify-center items-center pb-8">
-        <button
-          type="button"
-          onClick={() => choose(null)}
-          className="mt-5 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 shadow-sm hover:bg-gray-50 active:scale-[0.98] transition cursor-pointer"
-        >
-          믹스견/기타
-        </button>
-      </div>
+      {/* ✅ 버튼: 가운데 이미지 바로 아래 고정 */}
+      <button
+        type="button"
+        onClick={() => choose(null)}
+        className="
+          fixed left-1/2 top-1/2 -translate-x-1/2
+          translate-y-[128px] sm:translate-y-[136px]
+          z-10
+          inline-flex items-center justify-center
+          rounded-md border border-gray-300 bg-white px-4 py-2
+          text-sm text-gray-800 shadow-sm hover:bg-gray-50
+          active:scale-[0.98] transition cursor-pointer
+        "
+      >
+        믹스견/기타
+      </button>
     </div>
   );
 };

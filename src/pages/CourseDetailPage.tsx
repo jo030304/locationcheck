@@ -7,6 +7,47 @@ import { walkRecordIdState, walkStartedAtState } from '../hooks/walkAtoms';
 import { startWalk } from '../services/walks';
 import { nameState, breedState, birthState } from '../hooks/animalInfoAtoms';
 import { FaChevronLeft } from 'react-icons/fa6';
+import Profile from '../hooks/Profile';
+
+type ProfileButtonProps = {
+  to?: string;
+  imgSrc?: string;
+  alt?: string;
+  baseSize?: number;     // 기준 지름(px)
+  basePadding?: number;  // 기준 패딩(px)
+  scale?: number;        // 전체 스케일 (예: 1.25면 25% 확대)
+};
+
+function ProfileButton({
+  to = "/my_profile",
+  imgSrc = "/기본 마이 프로필.png",
+  alt = "기본 마이 프로필",
+  baseSize = 28,
+  basePadding = 6,
+  scale = 1,
+}: ProfileButtonProps) {
+  const navigate = useNavigate();
+  const size = baseSize * scale;
+  const padding = basePadding * scale;
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(to)}
+      className="rounded-full bg-gray-200 overflow-hidden flex items-center justify-center"
+      style={{ width: size, height: size, padding }}
+      aria-label="내 프로필로 이동"
+      title="내 프로필"
+    >
+      <img
+        src={imgSrc}
+        alt={alt}
+        className="w-full h-full object-cover"
+        draggable={false}
+      />
+    </button>
+  );
+}
 
 const StartButtonUI: React.FC<{
   onClick: () => void | Promise<void>;
@@ -41,7 +82,15 @@ const CourseDetailPage = () => {
   const dogName = useRecoilValue(nameState);
   const dogBreed = useRecoilValue(breedState);
   const dogBirth = useRecoilValue(birthState);
-  const dogAge = dogBirth ? new Date().getFullYear() - new Date(dogBirth).getFullYear() : null;
+  const dogAge = (() => {
+    if (!dogBirth) return null;
+    const b = new Date(dogBirth);
+    const t = new Date();
+    let age = t.getFullYear() - b.getFullYear();
+    const mdiff = t.getMonth() - b.getMonth();
+    if (mdiff < 0 || (mdiff === 0 && t.getDate() < b.getDate())) age--;
+    return Math.max(age, 0);
+  })();
 
   const [photozones, setPhotozones] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -139,14 +188,20 @@ const CourseDetailPage = () => {
 
         {/* 3) 이미지 아래 강아지 정보 */}
         <div className="flex items-center px-5 py-3 bg-white">
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center">
-            <span className="text-xl">🐕</span>
-          </div>
-          <div className="ml-3">
-            <div className="font-medium text-sm">{dogName || '반려견'}</div>
-            <div className="text-xs text-gray-500">
-              {dogBreed && `${dogBreed}`}
-              {dogAge && `, ${dogAge}살`}
+          <Profile
+          className
+            scale={1.5} basePadding={2}
+            />
+          <div className="ml-3 leading-tight">
+            {/* 이름 */}
+            <div className="text-sm font-semibold text-gray-900">
+              {dogName || '반려견'}
+            </div>
+            {/* 견종, 나이 */}
+            <div className="text-[12px] text-gray-500">
+              {[dogBreed, dogAge !== null ? `${dogAge}살` : null]
+                .filter(Boolean)
+                .join(', ') || '정보 없음'}
             </div>
           </div>
         </div>

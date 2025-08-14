@@ -16,7 +16,7 @@ import { createPresignedUrl, uploadToS3 } from '../services/upload';
 const Walk_record_after_walk = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  
+
   const navigate = useNavigate();
   const walkRecordId = useRecoilValue(walkRecordIdState);
   const distanceMeters = useRecoilValue(walkDistanceMetersState);
@@ -35,10 +35,10 @@ const Walk_record_after_walk = () => {
 
   const handleConfirm = async () => {
     setShowSaveModal(false);
-    
+
     try {
       let pathImageUrl: string | undefined = undefined;
-      
+
       // 캡처된 지도 이미지가 있으면 S3에 업로드
       if (mapCaptureImage && walkRecordId) {
         try {
@@ -52,18 +52,18 @@ const Walk_record_after_walk = () => {
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: 'image/png' });
           const file = new File([blob], 'map-capture.png', { type: 'image/png' });
-          
+
           // Presigned URL 생성
           const presignedRes = await createPresignedUrl({
             fileName: 'map-capture.png',
             fileType: 'image/png',
             uploadType: 'course_cover',
           });
-          
+
           const data = presignedRes?.data ?? presignedRes;
           const uploadUrl = data?.data?.uploadUrl || data?.uploadUrl;
           const fileUrl = data?.data?.fileUrl || data?.fileUrl;
-          
+
           if (uploadUrl) {
             // S3에 업로드
             await uploadToS3(uploadUrl, file);
@@ -74,7 +74,7 @@ const Walk_record_after_walk = () => {
           console.error('지도 이미지 업로드 실패:', uploadError);
         }
       }
-      
+
       if (walkRecordId) {
         await saveWalkDiary(walkRecordId, {
           title: null,
@@ -109,7 +109,7 @@ const Walk_record_after_walk = () => {
           month: '2-digit',
           day: '2-digit',
           weekday: 'short'
-        }).replace(/\. /g, '. ').replace(/\.$/,'')}
+        }).replace(/\. /g, '. ').replace(/\.$/, '')}
       </p>
 
       {/* 코스 제목 + 프로필 이미지 */}
@@ -144,25 +144,28 @@ const Walk_record_after_walk = () => {
       </div>
 
       {/* 지도 이미지 표시 */}
-      <div className="bg-gray-200 rounded-xl w-full h-[650px] overflow-hidden mt-10 relative">
-        {mapCaptureImage ? (
-          <img 
-            src={mapCaptureImage} 
-            alt="산책 경로" 
-            className="w-full h-full object-contain"
-            onError={(e) => {
-              console.error('이미지 표시 오류');
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <span className="text-gray-500 text-sm">지도 이미지가 없습니다</span>
-              <p className="text-gray-400 text-xs mt-2">산책 종료 시 지도가 캡처되지 않았습니다</p>
+      <div className="mt-6">
+        <div className="w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[3/2]">
+          {mapCaptureImage ? (
+            <img
+              src={mapCaptureImage}
+              alt="산책 경로"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.error('이미지 표시 오류');
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+              draggable={false}
+            />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-center">
+              <div>
+                <span className="text-gray-500 text-sm">지도 이미지가 없습니다</span>
+                <p className="text-gray-400 text-xs mt-2">산책 종료 시 지도가 캡처되지 않았습니다</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 저장 버튼 */}
@@ -170,11 +173,10 @@ const Walk_record_after_walk = () => {
         <button
           onClick={() => setShowSaveModal(true)}
           disabled={isSaved}
-          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${
-            isSaved
+          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${isSaved
               ? 'bg-gray-400 text-white cursor-default'
               : 'bg-[#4FA65B] text-white cursor-pointer'
-          }`}
+            }`}
         >
           {isSaved ? '등록 완료' : '산책일지 저장하기'}
         </button>

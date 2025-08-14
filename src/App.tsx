@@ -25,6 +25,7 @@ import WalkRecordDetails from './pages/WalkRecordDetails';
 import CoursePhotozones from './pages/CoursePhotozones';
 import SearchDog from './pages/SearchDog';
 import Recommended_course_list from './pages/Recommended_course_list';
+import MarkingPhotozone from './pages/MarkingPhotozone';
 
 // 전역 위치 추적 컴포넌트
 function GlobalLocationTracker() {
@@ -99,6 +100,7 @@ function App() {
         <Route path="/course_photozones" element={<CoursePhotozones />} />
         <Route path="/search_dog" element={<SearchDog />} />
         <Route path="/recommended_course_list" element={<Recommended_course_list/>} />
+        <Route path="/marking_photozone" element={<MarkingPhotozone />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
