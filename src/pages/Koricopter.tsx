@@ -182,7 +182,7 @@ function ScoreFX({
             color={heartColor}
             style={{
               position: 'absolute',
-              top: 88,
+              top: 38,
               left: '20%',
               transform: 'rotate(-25deg)',
               transformOrigin: '50% 50%',
@@ -218,7 +218,7 @@ function ScoreFX({
             color={heartColor}
             style={{
               position: 'absolute',
-              top: 64,
+              top: 44,
               right: '20%',
               transform: 'rotate(15deg)',
               transformOrigin: '50% 50%',
@@ -284,7 +284,7 @@ function ScoreFX({
           <Drop
             style={{
               position: 'absolute',
-              top: 200,
+              top: 150,
               left: '14%',
               width: 35,
               height: 35,
@@ -297,7 +297,7 @@ function ScoreFX({
           <Drop
             style={{
               position: 'absolute',
-              top: 300,
+              top: 220,
               left: '23%',
               width: 80,
               height: 80,
