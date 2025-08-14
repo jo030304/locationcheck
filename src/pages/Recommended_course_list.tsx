@@ -21,7 +21,6 @@ type Course = {
   tags?: string[];
 };
 
-// 점수 추출 & 숫자화 헬퍼
 const getTailScore = (c: any): number | undefined => {
   const raw =
     c?.averageTailcopterScore ??
@@ -33,7 +32,7 @@ const getTailScore = (c: any): number | undefined => {
     c?.meta?.tailcopterScore;
 
   const n = Number(raw);
-  return Number.isFinite(n) ? Math.round(n) : undefined; // 정수로 표시
+  return Number.isFinite(n) ? Math.round(n) : undefined;
 };
 
 export default function Recommended_course_list() {
@@ -45,13 +44,12 @@ export default function Recommended_course_list() {
   const [loading, setLoading] = useState<boolean>(!location.state?.courses);
 
   useEffect(() => {
-    if (location.state?.courses) return; // BottomSheet에서 받았으면 skip
+    if (location.state?.courses) return;
 
     let cancelled = false;
     (async () => {
       try {
         setLoading(true);
-        // 현재 recoil 값을 스냅샷으로 사용
         const lat = currentLocation?.lat ?? 37.5665;
         const lng = currentLocation?.lng ?? 126.9780;
 
@@ -106,8 +104,7 @@ export default function Recommended_course_list() {
             {items.map((course, i) => {
               const title = course.courseName || course.name || `코스 ${i + 1}`;
               const score = getTailScore(course);
-              const img =
-                course.coverImageUrl || course.photoUrl || course.coursePhotoUrl;
+              const img = course.coverImageUrl || course.photoUrl || course.coursePhotoUrl;
 
               const distance =
                 typeof course.courseLengthMeters === 'number'
@@ -120,27 +117,25 @@ export default function Recommended_course_list() {
                   : '';
 
               const meta = [distance, duration].filter(Boolean).join(' · ');
-
               const tagsArr = (course.features || course.tags || []).slice(0, 3);
               const tags = tagsArr.map((t) => (t?.startsWith('#') ? t : `#${t}`));
 
               return (
                 <li key={(course.id as any) ?? i}>
-                  <button
-                    className="w-full py-4 flex items-center gap-3 text-left active:opacity-80 cursor-pointer"
-                    onClick={() => navigate('/course_selected_detail', { state: { course } })}
-                  >
+                  {/* ✅ 전체 항목 클릭 불가: button → div, onClick 제거, cursor-default */}
+                  <div className="w-full py-4 flex items-center gap-3 cursor-default select-text">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-[15px] font-semibold text-neutral-900 truncate">
                           {title}
                         </h3>
-                        {score !== undefined && (                     // <-- 조건 변경
+                        {score !== undefined && (
                           <span className="ml-1 text-[11px] text-neutral-400">
                             🦴 {score}
                           </span>
                         )}
                       </div>
+
                       {meta && (
                         <p className="mt-1 text-[12px] text-neutral-500 truncate">
                           {meta}
@@ -158,18 +153,19 @@ export default function Recommended_course_list() {
                       )}
                     </div>
 
-                    {/* 오른쪽 썸네일 */}
-                    <div className="w-[64px] h-[64px] flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-amber-200 to-amber-100">
+                    {/* 오른쪽 썸네일도 클릭 불가 */}
+                    <div className="w-[64px] h-[64px] flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-amber-200 to-amber-100 pointer-events-none select-none">
                       {img && (
                         <img
                           src={img}
                           alt={title}
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          draggable={false}
                         />
                       )}
                     </div>
-                  </button>
+                  </div>
                 </li>
               );
             })}

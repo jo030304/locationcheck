@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FaChevronLeft } from 'react-icons/fa';
 import { useRecoilValue } from 'recoil';
 import { currentLocationState } from '../hooks/walkAtoms';
-import { nameState } from '../hooks/animalInfoAtoms'; // ✅ 추가
+import { nameState } from '../hooks/animalInfoAtoms';
 import { getCourseRecommendations } from '../services/courses';
 
 type Course = {
@@ -40,7 +40,7 @@ export default function Recommended_course_list() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: { courses?: Course[] } };
   const currentLocation = useRecoilValue(currentLocationState);
-  const dogName = (useRecoilValue(nameState) || '').trim(); // ✅ 추가
+  const dogName = (useRecoilValue(nameState) || '').trim();
 
   const [items, setItems] = useState<Course[]>(location.state?.courses ?? []);
   const [loading, setLoading] = useState<boolean>(!location.state?.courses);
@@ -119,16 +119,13 @@ export default function Recommended_course_list() {
                   : '';
 
               const meta = [distance, duration].filter(Boolean).join(' · ');
-
               const tagsArr = (course.features || course.tags || []).slice(0, 3);
               const tags = tagsArr.map((t) => (t?.startsWith('#') ? t : `#${t}`));
 
               return (
                 <li key={(course.id as any) ?? i}>
-                  <button
-                    className="w-full py-4 flex items-center gap-3 text-left active:opacity-80 cursor-pointer"
-                    onClick={() => navigate('/course_selected_detail', { state: { course } })}
-                  >
+                  {/* ✅ 전체 항목 클릭 불가 */}
+                  <div className="w-full py-4 flex items-center gap-3 cursor-default select-text">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-[15px] font-semibold text-neutral-900 truncate">
@@ -158,18 +155,19 @@ export default function Recommended_course_list() {
                       )}
                     </div>
 
-                    {/* 오른쪽 썸네일 */}
-                    <div className="w-[64px] h-[64px] flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-amber-200 to-amber-100">
+                    {/* 오른쪽 썸네일도 클릭 불가 */}
+                    <div className="w-[64px] h-[64px] flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-amber-200 to-amber-100 pointer-events-none select-none">
                       {img && (
                         <img
                           src={img}
                           alt={title}
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          draggable={false}
                         />
                       )}
                     </div>
-                  </button>
+                  </div>
                 </li>
               );
             })}
