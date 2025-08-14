@@ -43,7 +43,7 @@ const Walk_countdown = () => {
         </button>
 
         {/* 원형 카운트다운: 위에서 37.5% 지점 중앙 */}
-        <div className="absolute left-1/2 top-[37.5%] -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className="absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2 z-10">
           <div className="relative w-[240px] h-[240px] flex items-center justify-center">
             <svg
               className="absolute top-0 left-0 w-full h-full -rotate-90 z-30"
