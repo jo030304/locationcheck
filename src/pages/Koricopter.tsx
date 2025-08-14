@@ -465,8 +465,10 @@ const Koricopter = () => {
           null
         )}
         <div className="w-full flex justify-center">
-          <div className="w-[50%]">
-            <CustomSlider value={sliderValue} onChange={handleSliderChange} />
+          <div className="w-1/2">
+            <div className="w-full">
+              <CustomSlider value={sliderValue} onChange={handleSliderChange} />
+            </div>
           </div>
         </div>
       </div>

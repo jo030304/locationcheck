@@ -29,9 +29,9 @@ export default function StartWalkButton() {
   return (
     <button
       onClick={handleClick}
-      className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 
-             bg-[#4FA65B] text-white py-3 rounded-full shadow-lg cursor-pointer 
-             w-[40vw] max-w-xs"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50
+             bg-[#4FA65B] text-white py-3 rounded-full shadow-lg
+             w-[40%]"   // 부모 너비의 40%
     >
       산책 시작하기
     </button>
