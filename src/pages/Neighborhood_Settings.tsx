@@ -114,7 +114,11 @@ const Neighborhood_Settings = () => {
   return (
     <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] p-5 flex flex-col overscroll-contain">
       {/* 🔒 가운데 고정 워터마크 */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
+      {/* 키보드 올라와도 '처음 화면의 가운데' 유지: fixed + top:[50lvh] */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed left-1/2 top-[50lvh] -translate-x-1/2 -translate-y-1/2 -z-10"
+      >
         <img
           src="/동네 설정 사진.png"
           alt=""
