@@ -28,10 +28,8 @@ const Walk_existing = () => {
   const [distance, setDistance] = useRecoilState(walkDistanceMetersState);
   const [walkRecordId, setWalkRecordId] = useRecoilState(walkRecordIdState);
   const [startedAt, setStartedAt] = useRecoilState(walkStartedAtState);
-  const [markingCount, setMarkingCount] = useRecoilState(walkMarkingCountState);
-  const [pathCoordinates, setPathCoordinates] = useRecoilState(
-    walkPathCoordinatesState
-  );
+  const [, setMarkingCount] = useRecoilState(walkMarkingCountState);
+  const [, setPathCoordinates] = useRecoilState(walkPathCoordinatesState);
   const setMapCaptureImage = useSetRecoilState(mapCaptureImageState);
 
   // ---- 기타 상태 ----
@@ -106,6 +104,19 @@ const Walk_existing = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- 새 산책 진입/변경 시 0부터 시작하도록 초기화 ---
+  useEffect(() => {
+    setDistance(0);
+    setPathCoordinates([]);
+    setMarkingCount(0);
+    pathRef.current = [];
+    firstTrackRef.current = null;
+    // 자동완료 플래그도 리셋
+    finishShownRef.current = false;
+    if (!startedAt) setStartedAt(Date.now());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walkRecordId]);
 
   // 상단 배너 카피
   const courseName = useMemo(() => {
@@ -206,6 +217,13 @@ const Walk_existing = () => {
 
   // ---- (끝점 자동) 산책 종료 ----
   const handleEndWalk = async () => {
+    // ✅ 최소 진행거리 미만이면 자동 종료 방지
+    if (distance < MIN_PROGRESS_METERS) {
+      finishShownRef.current = false;
+      setShowFinishModal(false);
+      return;
+    }
+
     // 0) 모달/백드롭 먼저 숨김
     setShowFinishModal(false);
     // DOM 반영 대기
@@ -269,13 +287,11 @@ const Walk_existing = () => {
   /** -------------------- Operator 종료 모달 오버라이드 (이 페이지에서만) -------------------- */
   // 계속하기(확인): 상태 유지 + 현재 위치로 카메라 이동
   const handleEndKeepWalking = useCallback(() => {
-    // Operator가 모달을 닫은 뒤 호출됨(오버레이 제거 완료)
     mapRef.current?.moveToMyLocation?.();
   }, []);
 
   // 종료하기(취소): 모달/그림자 제거 후 스샷 → record_after 이동
   const handleEndToRecordAfter = useCallback(async () => {
-    // Operator 내부에서 이미 setShowEndModal(false) 된 상태
     await waitForPaint();
     await waitForPaint();
 
@@ -456,7 +472,8 @@ const Walk_existing = () => {
 
 export default Walk_existing;
 
-// 안전 파서
+// ---------------- utils ----------------
+
 function safeJsonParse(s: string) {
   try { return JSON.parse(s); } catch { return null; }
 }

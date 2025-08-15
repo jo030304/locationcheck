@@ -29,7 +29,6 @@ function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
-  // body 스크롤 잠금
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -41,10 +40,7 @@ function ConfirmModal({
 
   return (
     <>
-      {/* 배경 그림자 (opacity=0.4) */}
       <Dimmer opacity={0.4} z={50} onClick={onCancel} />
-
-      {/* 카드 */}
       <div className="fixed inset-0 z-[60] flex items-center justify-center">
         <div
           role="dialog"
@@ -81,6 +77,48 @@ function ConfirmModal({
   );
 }
 
+/* --------------------------- helpers (추가) --------------------------- */
+// 응답 래핑 해제
+const unwrap = (res: any) => res?.data?.data ?? res?.data ?? res;
+
+// 깊게 탐색해서 courseId 찾기 (최대 500노드, depth 6)
+function deepFindCourseId(input: any): number | string | null {
+  if (!input) return null;
+
+  const q: any[] = [input];
+  const seen = new Set<any>();
+  let steps = 0;
+
+  while (q.length && steps < 500) {
+    steps++;
+    const cur = q.shift();
+    if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
+    seen.add(cur);
+
+    // 직접 키
+    if (cur.course_id != null) return cur.course_id;
+    if (cur.courseId != null) return cur.courseId;
+
+    // course 객체 내부 키
+    if (cur.course && typeof cur.course === 'object') {
+      const c = cur.course;
+      if (c.course_id != null) return c.course_id;
+      if (c.courseId != null) return c.courseId;
+      if (c.id != null) return c.id;
+    }
+
+    // 일반 id인데 부모키가 course일 수도 있음 (키 힌트)
+    // 생략…
+
+    // 다음 탐색 대상 enqueue
+    for (const k of Object.keys(cur)) {
+      const v = (cur as any)[k];
+      if (v && typeof v === 'object') q.push(v);
+    }
+  }
+  return null;
+}
+
 /* --------------------------- WalkRecordDetails --------------------------- */
 export default function WalkRecordDetails() {
   const { walkRecordId } = useParams();
@@ -95,7 +133,7 @@ export default function WalkRecordDetails() {
   useEffect(() => {
     const loadDetails = async () => {
       if (location.state?.record) {
-        setDetails(location.state.record);
+        setDetails(unwrap(location.state.record));
         return;
       }
       if (!walkRecordId) {
@@ -114,7 +152,7 @@ export default function WalkRecordDetails() {
       setIsLoading(true);
       try {
         const response = await getWalkDiaryDetails(walkRecordId);
-        const data = response?.data ?? response;
+        const data = unwrap(response);
         setDetails(data);
       } catch (error) {
         console.error('산책 기록 상세 정보 조회 실패:', error);
@@ -154,17 +192,33 @@ export default function WalkRecordDetails() {
   const handleConfirmStart = async () => {
     setStarting(true);
     try {
-      if (details?.course_id || details?.courseId) {
-        await startWalk({
-          walk_type: 'EXISTING_COURSE',
-          course_id: details.course_id || details.courseId,
-        });
+      // 1) 라우터 state 먼저, 2) details 전체를 깊게 탐색
+      const stateCourseId =
+        location.state?.courseId ??
+        location.state?.course?.courseId ??
+        location.state?.course?.id ??
+        location.state?.course?.course_id ??
+        null;
+
+      const courseId = stateCourseId ?? deepFindCourseId(details);
+
+      if (!courseId) {
+        // 디버깅 도움: 콘솔로 실제 구조 확인 가능
+        console.warn('[WalkRecordDetails] courseId not found', { details, state: location.state });
+        alert('이 기록에 연결된 코스 정보를 찾지 못했어요.');
         setConfirmOpen(false);
-        navigate('/walk_countdown?state=existing', { state: { from: 'exist' } });
-      } else {
-        setConfirmOpen(false);
-        navigate('/walk_new');
+        return;
       }
+
+      await startWalk({
+        walk_type: 'EXISTING_COURSE',
+        course_id: courseId,
+      });
+
+      setConfirmOpen(false);
+      navigate('/walk_countdown?state=existing', {
+        state: { from: 'exist', courseId },
+      });
     } catch {
       alert('산책을 시작할 수 없습니다.');
     } finally {
@@ -258,7 +312,7 @@ export default function WalkRecordDetails() {
       <div className="absolute bottom-0 left-0 w-full px-6 pb-6 bg-white">
         <button
           className="w-full py-3 rounded-xl text-[16px] font-semibold bg-[#4FA65B] text-white cursor-pointer active:opacity-90"
-          onClick={handleStartButton}
+          onClick={() => setConfirmOpen(true)}
         >
           이 코스로 다시 산책하기
         </button>
@@ -267,7 +321,7 @@ export default function WalkRecordDetails() {
       {/* 모달 */}
       <ConfirmModal
         open={confirmOpen}
-        title="기억에 남았던 산책명소"
+        title="기억에 남았던 산책멍소"
         subtitle="이 코스로 다시 산책할까요?"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleConfirmStart}

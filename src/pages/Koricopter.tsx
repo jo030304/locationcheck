@@ -1,6 +1,6 @@
 // Koricopter.tsx
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState, useId, type CSSProperties } from 'react';
+import { useEffect, useState, useId, useRef, type CSSProperties } from 'react';
 import CustomSlider from '../hooks/CustomSlider';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import { tailcopterScoreState, walkRecordIdState } from '../hooks/walkAtoms';
@@ -341,11 +341,21 @@ const Koricopter = () => {
 
   const tier: Tier = score <= 33 ? 'low' : score <= 66 ? 'mid' : 'high';
 
-  // 메시지 4초 후 표시
+  // ✅ 첫 상호작용 이후 4초 카운트 시작
   useEffect(() => {
-    const msgTimer = setTimeout(() => setShowMessage(true), 4000);
-    return () => clearTimeout(msgTimer);
-  }, []);
+    if (!hasInteracted || showMessage) return;
+    if (msgTimerRef.current != null) return; // 이미 타이머 시작됨
+    msgTimerRef.current = window.setTimeout(() => {
+      setShowMessage(true);
+      msgTimerRef.current = null;
+    }, 4000);
+    return () => {
+      if (msgTimerRef.current != null) {
+        clearTimeout(msgTimerRef.current);
+        msgTimerRef.current = null;
+      }
+    };
+  }, [hasInteracted, showMessage]);
 
   // 메시지 후 저장/네비
   const walkRecordId = useRecoilValue(walkRecordIdState);
@@ -381,6 +391,9 @@ const Koricopter = () => {
       setLeftReached(false); setRightReached(false);
     }
   };
+  
+  // ✅ Koricopter 컴포넌트 내부, state들 선언 근처에 추가
+  const msgTimerRef = useRef<number | null>(null);
 
   return (
     <div className="relative min-h-[100svh] overflow-hidden">
