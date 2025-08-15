@@ -180,9 +180,11 @@ const SearchDog = () => {
       {/* 안내 문구: 강아지 이미지 아래, 버튼 위 */}
       <p
         className="
-          fixed left-1/2 -translate-x-1/2 z-10 pt-1
+          fixed left-1/2 -translate-x-1/2 z-10
           top-[calc(50lvh+96px)] sm:top-[calc(50lvh+104px)]
-          px-6 text-center text-[12px] leading-relaxed text-gray-500
+          px-3 text-center
+          text-[10px] sm:text-[11px] leading-tight text-gray-500
+          max-w-[85vw] truncate  /* 한 줄 + 넘치면 … 처리 */
           transition-opacity duration-200
           group-focus-within:opacity-0 group-focus-within:invisible
         "
@@ -190,23 +192,22 @@ const SearchDog = () => {
         본 목록은 국제 공인 견종 기준으로 구성되어 있어요.
       </p>
 
-
       {/* ✅ 버튼: 가운데 이미지 바로 아래 고정 */}
       <button
         type="button"
         onClick={() => choose(null)}
         className="
-          fixed left-1/2 -translate-x-1/2 z-10
+          fixed left-1/2 -translate-x-1/2 z-[60]
           top-[calc(50lvh+128px)] sm:top-[calc(50lvh+136px)]
           inline-flex items-center justify-center
           rounded-md border border-gray-300 bg-white px-4 py-2
           text-sm text-gray-800 shadow-sm hover:bg-gray-50
           active:scale-[0.98] transition cursor-pointer
-          transition-opacity duration-200 group-focus-within:opacity-0 group-focus-within:invisible group-focus-within:pointer-events-none
         "
       >
         믹스견/기타
       </button>
+
     </div>
   );
 };

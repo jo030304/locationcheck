@@ -38,9 +38,7 @@ const Walk_new = () => {
   const mapRef = useRef<any>(null);
   const [markingCount, setMarkingCount] = useRecoilState(walkMarkingCountState);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pathCoordinates, setPathCoordinates] = useRecoilState(
-    walkPathCoordinatesState
-  );
+  const [, setPathCoordinates] = useRecoilState(walkPathCoordinatesState);
   const currentLocation = useRecoilValue(currentLocationState);
 
   // onPathUpdate 콜백 메모이제이션
@@ -219,20 +217,14 @@ const Walk_new = () => {
                 lat,
                 lng,
                 ts: Date.now(),
-                markingPhotoId, // ✅ 추가: 저장된 마킹 사진 id
+                markingPhotoId, // ✅ 추가
               };
               sessionStorage.setItem('last_marking_photo', JSON.stringify(payload)); // 새로고침 대비
 
               // ✅ 로컬 히스토리 저장 (중복 방지)
               try {
                 const KEY = 'marking_photos';
-                const item = {
-                  fileUrl,
-                  lat,
-                  lng,
-                  ts: payload.ts,
-                  markingPhotoId,
-                };
+                const item = { fileUrl, lat, lng, ts: payload.ts, markingPhotoId };
                 const prev: any[] = JSON.parse(localStorage.getItem(KEY) || '[]');
                 const exists = prev.some((p) =>
                   (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
@@ -240,16 +232,14 @@ const Walk_new = () => {
                 );
                 const next = exists ? prev : [item, ...prev].slice(0, 200);
                 localStorage.setItem(KEY, JSON.stringify(next));
-              } catch { }
+              } catch {}
 
               navigate('/marking_photozone', { state: payload });
             }
           } catch (err) {
             console.error('마킹 업로드 실패:', err);
           } finally {
-            if (inputElement) {
-              inputElement.value = '';
-            }
+            if (inputElement) inputElement.value = '';
           }
         }}
       />

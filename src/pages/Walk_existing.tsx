@@ -40,11 +40,11 @@ const Walk_existing = () => {
 
   // ---- 위치/테스트 모드 ----
   const currentLocation = useRecoilValue(currentLocationState);
-  const [testMode, setTestMode] = useState(false); // 유지만 함 (버튼 동작과 무관)
+  const [testMode, setTestMode] = useState(false); // 유지 (버튼 동작과 무관)
   const [virtualPosition, setVirtualPosition] =
     useState<{ lat: number; lng: number } | null>(null);
 
-  // 출발 기준(앵커) (필요 시 확장용)
+  // 출발 기준(앵커)
   const firstTrackRef = useRef<{ lat: number; lng: number } | null>(null);
   const initialFixRef = useRef<{ lat: number; lng: number } | null>(currentLocation ?? null);
   useEffect(() => {
@@ -154,6 +154,17 @@ const Walk_existing = () => {
 
   // ✅ 전체 코스 경로(회색) 프리셋
   const basePath = useMemo(() => extractCoursePath(selectedCourse), [selectedCourse]);
+
+  // ✅ basePathOptions는 useMemo로 (불필요 렌더 방지용, KakaoMap도 안전하게 처리함)
+  const basePathOptions = useMemo(
+    () => ({
+      strokeColor: '#CCCCCC',
+      strokeWeight: 5,
+      strokeOpacity: 1,
+      strokeStyle: 'solid' as const,
+    }),
+    []
+  );
 
   // ✅ 끝점은 저장된 경로의 마지막 좌표
   const finishLatLng = useMemo(() => {
@@ -328,14 +339,9 @@ const Walk_existing = () => {
         ref={mapRef}
         initialPosition={currentLocation}
         testMode={testMode}
-        // ✅ 전체 코스(회색) 프리셋 경로 전달
+        // ✅ 전체 코스(회색) 프리셋 경로 + 옵션
         basePath={basePath}
-        basePathOptions={{
-          strokeColor: '#CCCCCC',
-          strokeWeight: 5,
-          strokeOpacity: 1,
-          strokeStyle: 'solid',
-        }}
+        basePathOptions={basePathOptions}
       >
         {(courseName || totalDistanceMeters > 0) && (
           <CourseRecord
@@ -567,5 +573,5 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 2 * R * Math.atan2(Math.sqrt(1 - a), 1 - Math.sqrt(1 - a)); // 동일 결과
 }

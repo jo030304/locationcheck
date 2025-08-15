@@ -75,6 +75,11 @@ const KakaoMap = forwardRef(function KakaoMap(
   /** basePath 최신값 보관 */
   const basePathRef = useRef<Array<[number, number]>>([]);
 
+  /** basePath Bounds fit은 최초 1회만 */
+  const didFitBaseBoundsRef = useRef(false);
+  /** 마지막 basePathOptions 저장 */
+  const basePathOptionsRef = useRef<BasePathOptions | undefined>(undefined);
+
   const initialPosRef = useRef(initialPosition);
   const globalLocation = useRecoilValue(currentLocationState);
   const paused = useRecoilValue(walkPausedState);
@@ -92,6 +97,39 @@ const KakaoMap = forwardRef(function KakaoMap(
     const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  }
+
+  /** 얕은 경로 비교 */
+  function shallowEqualPath(a?: Array<[number, number]>, b?: Array<[number, number]>) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1]) return false;
+    }
+    return true;
+  }
+
+  /** 옵션 비교(기본값 포함) */
+  function shallowEqualOptions(a?: BasePathOptions, b?: BasePathOptions) {
+    const da = {
+      strokeColor: a?.strokeColor ?? '#CCCCCC',
+      strokeWeight: a?.strokeWeight ?? 6,
+      strokeOpacity: a?.strokeOpacity ?? 1,
+      strokeStyle: a?.strokeStyle ?? 'solid',
+    };
+    const db = {
+      strokeColor: b?.strokeColor ?? '#CCCCCC',
+      strokeWeight: b?.strokeWeight ?? 6,
+      strokeOpacity: b?.strokeOpacity ?? 1,
+      strokeStyle: b?.strokeStyle ?? 'solid',
+    };
+    return (
+      da.strokeColor === db.strokeColor &&
+      da.strokeWeight === db.strokeWeight &&
+      da.strokeOpacity === db.strokeOpacity &&
+      da.strokeStyle === db.strokeStyle
+    );
   }
 
   /** 현재 위치를 basePath에 스냅해서 완료 구간을 업데이트 */
@@ -112,7 +150,7 @@ const KakaoMap = forwardRef(function KakaoMap(
     }
 
     // 너무 멀면(코스에서 이탈) 완료 반영 X
-    const SNAP_THRESHOLD_M = 30; // 필요시 10~50m로 조정
+    const SNAP_THRESHOLD_M = 30; // 필요시 조정
     if (nearestIdx < 0 || nearestDist > SNAP_THRESHOLD_M) return;
 
     // 뒤로 가는 건 무시하고, 가장 멀리 간 인덱스로 갱신
@@ -260,10 +298,11 @@ const KakaoMap = forwardRef(function KakaoMap(
     return `${baseUrl}?${params.toString()}`;
   };
 
-  // ----- 지도 초기화 -----
+  // ----- 지도 초기화 (최초 1회) -----
   useEffect(() => {
     if (!window.kakao?.maps) return;
-    if (mapRef.current) return;
+    if (mapRef.current) return; // 이미 초기화됨
+
     const container = mapContainerRef.current;
     if (!container) return;
 
@@ -308,42 +347,73 @@ const KakaoMap = forwardRef(function KakaoMap(
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // ----- 회색 전체 코스 그리기 & 초기화 -----
+  // ----- 회색 전체 코스 그리기 (변경 감지 기반, Bounds는 최초 1회) -----
   useEffect(() => {
     if (!mapRef.current || !window.kakao) return;
 
-    // 기존 회색/초록 오버레이 제거
-    if (basePolylineRef.current) {
-      basePolylineRef.current.setMap(null);
-      basePolylineRef.current = null;
-    }
-    if (progressPolylineRef.current) {
-      progressPolylineRef.current.setMap(null);
-      progressPolylineRef.current = null;
-    }
-    progressIndexRef.current = -1;
-
+    // 경로가 없으면 정리만
     if (!basePath || basePath.length < 2) {
       basePathRef.current = [];
+      if (basePolylineRef.current) {
+        basePolylineRef.current.setMap(null);
+        basePolylineRef.current = null;
+      }
+      if (progressPolylineRef.current) {
+        progressPolylineRef.current.setMap(null);
+        progressPolylineRef.current = null;
+      }
+      progressIndexRef.current = -1;
+      didFitBaseBoundsRef.current = false; // 다음에 경로가 들어오면 1회 fit
+      basePathOptionsRef.current = basePathOptions;
       return;
     }
 
-    basePathRef.current = basePath;
+    // 변경 감지
+    const pathChanged = !shallowEqualPath(basePathRef.current, basePath);
+    const optsChanged = !shallowEqualOptions(basePathOptionsRef.current, basePathOptions);
 
-    const path = basePath.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng));
-    basePolylineRef.current = new window.kakao.maps.Polyline({
-      path,
-      strokeColor: basePathOptions?.strokeColor ?? '#CCCCCC',
-      strokeWeight: basePathOptions?.strokeWeight ?? 6,
-      strokeOpacity: basePathOptions?.strokeOpacity ?? 1,
-      strokeStyle: basePathOptions?.strokeStyle ?? 'solid',
-    });
-    basePolylineRef.current.setMap(mapRef.current);
+    // 1) 경로가 실제로 바뀐 경우에만 path 업데이트 (리셋 최소화)
+    if (pathChanged) {
+      basePathRef.current = basePath;
+      progressIndexRef.current = -1;
 
-    // 전체가 보이도록
-    const bounds = new window.kakao.maps.LatLngBounds();
-    path.forEach((p) => bounds.extend(p));
-    mapRef.current.setBounds(bounds);
+      const pathLL = basePath.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng));
+      const strokeColor = basePathOptions?.strokeColor ?? '#CCCCCC';
+      const strokeWeight = basePathOptions?.strokeWeight ?? 6;
+      const strokeOpacity = basePathOptions?.strokeOpacity ?? 1;
+      const strokeStyle = basePathOptions?.strokeStyle ?? 'solid';
+
+      if (!basePolylineRef.current) {
+        basePolylineRef.current = new window.kakao.maps.Polyline({
+          path: pathLL,
+          strokeColor,
+          strokeWeight,
+          strokeOpacity,
+          strokeStyle,
+        });
+        basePolylineRef.current.setMap(mapRef.current);
+      } else {
+        basePolylineRef.current.setPath(pathLL);
+        basePolylineRef.current.setOptions({ strokeColor, strokeWeight, strokeOpacity, strokeStyle });
+      }
+
+      // 경로가 처음 들어온 경우에만 전체 보기로 Bounds fit
+      if (!didFitBaseBoundsRef.current) {
+        const bounds = new window.kakao.maps.LatLngBounds();
+        pathLL.forEach((p) => bounds.extend(p));
+        mapRef.current.setBounds(bounds);
+        didFitBaseBoundsRef.current = true;
+      }
+    } else if (optsChanged && basePolylineRef.current) {
+      // 2) 옵션만 바뀌면 스타일만 갱신 (경로/Bounds 유지)
+      const strokeColor = basePathOptions?.strokeColor ?? '#CCCCCC';
+      const strokeWeight = basePathOptions?.strokeWeight ?? 6;
+      const strokeOpacity = basePathOptions?.strokeOpacity ?? 1;
+      const strokeStyle = basePathOptions?.strokeStyle ?? 'solid';
+      basePolylineRef.current.setOptions({ strokeColor, strokeWeight, strokeOpacity, strokeStyle });
+    }
+
+    basePathOptionsRef.current = basePathOptions;
   }, [basePath, basePathOptions]);
 
   // ----- 위치 업데이트(실제 이동) → 진행도 칠하기 -----
@@ -376,7 +446,7 @@ const KakaoMap = forwardRef(function KakaoMap(
       }
     }
 
-    // 실시간 녹색 경로(네 기존 로직 유지)
+    // 실시간 녹색 경로
     const prev = prevPosRef.current;
     const drawingActive = drawingEnabled && !paused;
     if (prev && drawingActive && mapRef.current) {
