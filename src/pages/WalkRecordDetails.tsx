@@ -1,9 +1,10 @@
 // WalkRecordDetails.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useRecoilValue } from 'recoil';
+import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { nameState } from '../hooks/animalInfoAtoms';
 import { startWalk, getWalkDiaryDetails } from '../services/walks';
+import { walkRecordIdState, walkStartedAtState } from '../hooks/walkAtoms';
 import Profile from '../hooks/Profile';
 import Dimmer from '../hooks/Dimmer';
 
@@ -77,46 +78,75 @@ function ConfirmModal({
   );
 }
 
-/* --------------------------- helpers (추가) --------------------------- */
-// 응답 래핑 해제
+/* --------------------------- helpers --------------------------- */
 const unwrap = (res: any) => res?.data?.data ?? res?.data ?? res;
 
-// 깊게 탐색해서 courseId 찾기 (최대 500노드, depth 6)
 function deepFindCourseId(input: any): number | string | null {
   if (!input) return null;
-
   const q: any[] = [input];
   const seen = new Set<any>();
   let steps = 0;
-
-  while (q.length && steps < 500) {
+  while (q.length && steps < 800) {
     steps++;
     const cur = q.shift();
     if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
     seen.add(cur);
 
-    // 직접 키
-    if (cur.course_id != null) return cur.course_id;
-    if (cur.courseId != null) return cur.courseId;
+    if ((cur as any).course_id != null) return (cur as any).course_id;
+    if ((cur as any).courseId != null)  return (cur as any).courseId;
 
-    // course 객체 내부 키
-    if (cur.course && typeof cur.course === 'object') {
-      const c = cur.course;
+    if ((cur as any).course && typeof (cur as any).course === 'object') {
+      const c = (cur as any).course;
       if (c.course_id != null) return c.course_id;
-      if (c.courseId != null) return c.courseId;
-      if (c.id != null) return c.id;
+      if (c.courseId  != null) return c.courseId;
+      if (c.id        != null) return c.id;
+      if (c.data && typeof c.data === 'object') {
+        if (c.data.course_id != null) return c.data.course_id;
+        if (c.data.courseId  != null) return c.data.courseId;
+        if (c.data.id        != null) return c.data.id;
+      }
     }
-
-    // 일반 id인데 부모키가 course일 수도 있음 (키 힌트)
-    // 생략…
-
-    // 다음 탐색 대상 enqueue
     for (const k of Object.keys(cur)) {
       const v = (cur as any)[k];
       if (v && typeof v === 'object') q.push(v);
     }
   }
   return null;
+}
+
+const toNumIfNumeric = (v: any) => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v);
+
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '날짜 정보 없음';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+  return `${y}. ${m}. ${day} (${wd})`;
+};
+
+const formatDistance = (meters: number) => {
+  if (meters >= 1000) return `${(meters / 1000).toFixed(2)}km`;
+  return `${meters}m`;
+};
+
+// 세션 키
+const keyForRecord = (id?: string | number | null) => (id ? `walk_record_course_${id}` : '');
+
+function cacheCourseId(recordId: string | number | null | undefined, courseId: any) {
+  const key = keyForRecord(recordId);
+  if (!key) return;
+  try { sessionStorage.setItem(key, String(courseId)); } catch {}
+}
+
+function readCachedCourseId(recordId: string | number | null | undefined): string | number | null {
+  const key = keyForRecord(recordId);
+  if (!key) return null;
+  try {
+    const v = sessionStorage.getItem(key);
+    return v == null ? null : toNumIfNumeric(v);
+  } catch { return null; }
 }
 
 /* --------------------------- WalkRecordDetails --------------------------- */
@@ -130,12 +160,27 @@ export default function WalkRecordDetails() {
   const navigate = useNavigate();
   const dogName = useRecoilValue(nameState);
 
+  const setWalkRecordId = useSetRecoilState(walkRecordIdState);
+  const setWalkStartedAt = useSetRecoilState(walkStartedAtState);
+
+  // 상세 로드
   useEffect(() => {
     const loadDetails = async () => {
       if (location.state?.record) {
-        setDetails(unwrap(location.state.record));
+        const d = unwrap(location.state.record);
+        setDetails(d);
+        // 들어온 state에서라도 코스ID 캐싱
+        const cidFromState =
+          location.state?.courseId ??
+          location.state?.course?.courseId ??
+          location.state?.course?.id ??
+          location.state?.course?.course_id ??
+          null;
+        const cid = cidFromState ?? deepFindCourseId(d);
+        if (cid != null) cacheCourseId(walkRecordId ?? d?.walk_record_id ?? d?.id, cid);
         return;
       }
+
       if (!walkRecordId) {
         setDetails({
           walk_record_id: walkRecordId,
@@ -149,11 +194,16 @@ export default function WalkRecordDetails() {
         });
         return;
       }
+
       setIsLoading(true);
       try {
         const response = await getWalkDiaryDetails(walkRecordId);
         const data = unwrap(response);
         setDetails(data);
+
+        // ✅ 응답에서 코스ID 찾아서 캐싱 (다음에 못찾아도 세션에서 꺼내 쓸 수 있게)
+        const cid = deepFindCourseId(data);
+        if (cid != null) cacheCourseId(walkRecordId, cid);
       } catch (error) {
         console.error('산책 기록 상세 정보 조회 실패:', error);
         setDetails({
@@ -173,53 +223,67 @@ export default function WalkRecordDetails() {
     loadDetails();
   }, [walkRecordId, location.state]);
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const wd = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
-    return `${y}. ${m}. ${day} (${wd})`;
-  };
-
-  const formatDistance = (meters: number) => {
-    if (meters >= 1000) return `${(meters / 1000).toFixed(2)}km`;
-    return `${meters}m`;
-  };
-
   const handleStartButton = () => setConfirmOpen(true);
 
   const handleConfirmStart = async () => {
     setStarting(true);
     try {
-      // 1) 라우터 state 먼저, 2) details 전체를 깊게 탐색
-      const stateCourseId =
+      // 1) 라우트 state
+      let courseId: any =
         location.state?.courseId ??
         location.state?.course?.courseId ??
         location.state?.course?.id ??
         location.state?.course?.course_id ??
         null;
 
-      const courseId = stateCourseId ?? deepFindCourseId(details);
+      // 2) details 깊은 탐색
+      if (courseId == null) courseId = deepFindCourseId(details);
 
-      if (!courseId) {
-        // 디버깅 도움: 콘솔로 실제 구조 확인 가능
+      // 3) 세션 캐시 (이 기록으로 들어온 적 있다면 저장돼 있음)
+      if (courseId == null) courseId = readCachedCourseId(walkRecordId ?? details?.walk_record_id ?? details?.id);
+
+      // 4) 마지막 안전장치: 이전 화면에서 저장했을 수도 있는 전역 선택 코스
+      if (courseId == null) {
+        try {
+          const ss = sessionStorage.getItem('selected_course_id');
+          if (ss) courseId = toNumIfNumeric(ss);
+        } catch {}
+      }
+
+      if (courseId == null) {
         console.warn('[WalkRecordDetails] courseId not found', { details, state: location.state });
         alert('이 기록에 연결된 코스 정보를 찾지 못했어요.');
         setConfirmOpen(false);
         return;
       }
 
-      await startWalk({
+      // 숫자 문자열이면 숫자로
+      courseId = toNumIfNumeric(courseId);
+
+      const res = await startWalk({
         walk_type: 'EXISTING_COURSE',
         course_id: courseId,
       });
+      const data = unwrap(res);
+
+      const newWalkRecordId =
+        data?.data?.walk_record_id ??
+        data?.walk_record_id ??
+        data?.walkRecordId ??
+        null;
+
+      setWalkRecordId(newWalkRecordId || null);
+      setWalkStartedAt(Date.now());
+
+      // 다음 화면에서도 courseId 필요하면 state + 세션에 남김
+      try { sessionStorage.setItem('selected_course_id', String(courseId)); } catch {}
 
       setConfirmOpen(false);
       navigate('/walk_countdown?state=existing', {
-        state: { from: 'exist', courseId },
+        state: { startType: 'existing', from: 'exist', courseId, walkRecordId: newWalkRecordId },
       });
-    } catch {
+    } catch (e) {
+      console.error('startWalk failed', e);
       alert('산책을 시작할 수 없습니다.');
     } finally {
       setStarting(false);
