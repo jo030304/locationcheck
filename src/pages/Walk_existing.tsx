@@ -40,7 +40,7 @@ const Walk_existing = () => {
 
   // ---- 위치/테스트 모드 ----
   const currentLocation = useRecoilValue(currentLocationState);
-  const [testMode, setTestMode] = useState(false);
+  const [testMode, setTestMode] = useState(false); // 유지만 함 (버튼 동작과 무관)
   const [virtualPosition, setVirtualPosition] =
     useState<{ lat: number; lng: number } | null>(null);
 
@@ -176,27 +176,33 @@ const Walk_existing = () => {
     [setPathCoordinates]
   );
 
-  // ---- 테스트: 가상 이동 ----
-  const handleVirtualMove = () => {
-    if (!mapRef.current) return;
-    let basePos =
-      virtualPosition ??
-      mapRef.current.getCurrentPosition?.() ??
-      currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+  // 기준 위치 가져오기
+  const getBasePosition = useCallback((): { lat: number; lng: number } => {
+    const fallback = currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+    const fromMap = mapRef.current?.getCurrentPosition?.();
+    const base = virtualPosition ?? fromMap ?? fallback;
+    if (!base || base.lat == null || base.lng == null) return fallback;
+    return base;
+  }, [virtualPosition, currentLocation]);
 
-    const newLat = basePos.lat - 0.00045; // ≈ 50m
-    const newLng = basePos.lng;
+  // 위/경도 50m 이동 유틸
+  const moveByMeters = useCallback((northMeters: number, eastMeters: number) => {
+    const base = getBasePosition();
+    const latRad = (base.lat * Math.PI) / 180;
+    const dLat = northMeters / 111_000;
+    const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6);
+    const dLng = eastMeters / denom;
 
-    setTestMode(true);
+    const newLat = base.lat + dLat;
+    const newLng = base.lng + dLng;
+
     setVirtualPosition({ lat: newLat, lng: newLng });
 
-    if (mapRef.current.updatePosition) {
+    if (mapRef.current?.updatePosition) {
       mapRef.current.updatePosition(newLat, newLng);
     }
     handlePathUpdate({ lat: newLat, lng: newLng });
-
-    setTimeout(() => setTestMode(false), 3000);
-  };
+  }, [getBasePosition, handlePathUpdate]);
 
   // ---- 주기적 경로 업로드 ----
   useEffect(() => {
@@ -339,6 +345,49 @@ const Walk_existing = () => {
           />
         )}
 
+        {/* ✅ 방향 이동 패널 (항상 표시) */}
+        <div className="absolute top-20 right-4 z-50">
+          <div className="bg-white/90 backdrop-blur rounded-xl border border-gray-200 shadow p-2">
+            <div className="grid grid-cols-3 gap-1">
+              <div />
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(50, 0)}
+                title="북쪽으로 50m"
+              >
+                N
+              </button>
+              <div />
+
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(0, -50)}
+                title="서쪽으로 50m"
+              >
+                W
+              </button>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(-50, 0)}
+                title="남쪽으로 50m"
+              >
+                S
+              </button>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(0, 50)}
+                title="동쪽으로 50m"
+              >
+                E
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="absolute bottom-0 w-full flex justify-center">
           <Operator
             onMark={() => setMarkRequested(true)}
@@ -355,18 +404,6 @@ const Walk_existing = () => {
             onEndCancelOverride={handleEndToRecordAfter}
           />
         </div>
-
-        {process.env.NODE_ENV === 'development' && (
-          <button
-            onClick={handleVirtualMove}
-            className={`absolute top-20 right-4 px-3 py-2 rounded-lg text-sm font-medium shadow-lg z-50 ${
-              testMode ? 'bg-red-500 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-            disabled={testMode}
-          >
-            {testMode ? '이동 중...' : 'TEST: 남쪽 50m'}
-          </button>
-        )}
       </KakaoMap>
 
       {/* 마킹 사진 업로드 인풋 (숨김) */}

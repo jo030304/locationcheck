@@ -21,14 +21,16 @@ import { createPresignedUrl, uploadToS3 } from '../services/upload';
 import { useNavigate } from 'react-router-dom';
 import { createMarkingPhoto } from '../services/marking';
 
-
 const Walk_new = () => {
   const navigate = useNavigate();
   const [markRequested, setMarkRequested] = useState(false);
   const [distance, setDistance] = useRecoilState(walkDistanceMetersState);
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
   const [showStopModal, setShowStopModal] = useState(false);
+
+  // testMode는 유지하되, 버튼은 testMode와 관계없이 항상 동작/표시
   const [testMode, setTestMode] = useState(false);
+
   const [virtualPosition, setVirtualPosition] = useState<{ lat: number; lng: number } | null>(null);
   const walkRecordId = useRecoilValue(walkRecordIdState);
   const startedAt = useRecoilValue(walkStartedAtState);
@@ -41,60 +43,42 @@ const Walk_new = () => {
   );
   const currentLocation = useRecoilValue(currentLocationState);
 
-  // 테스트용 가상 이동 함수
-  const handleVirtualMove = () => {
-    if (!mapRef.current) return;
-
-    // 기준 위치 결정 (가상 위치가 있으면 그것을, 없으면 현재 위치 사용)
-    let basePos;
-    if (virtualPosition) {
-      basePos = virtualPosition;
-    } else {
-      basePos = mapRef.current.getCurrentPosition();
-      if (!basePos || basePos.lat === 0) {
-        // 현재 위치가 없으면 기본값 사용
-        basePos = currentLocation || { lat: 37.5665, lng: 126.9780 };
-      }
-    }
-
-    // 남쪽으로 50미터 이동 (위도 감소)
-    // 1도 ≈ 111km, 50m ≈ 0.00045도
-    const newLat = basePos.lat - 0.00045;
-    const newLng = basePos.lng;
-
-    console.log('🚶 가상 이동 실행:', {
-      from: { lat: basePos.lat.toFixed(6), lng: basePos.lng.toFixed(6) },
-      to: { lat: newLat.toFixed(6), lng: newLng.toFixed(6) },
-      distance: '약 50m 남쪽'
-    });
-
-    // 테스트 모드 활성화
-    setTestMode(true);
-    setVirtualPosition({ lat: newLat, lng: newLng });
-
-    // KakaoMap의 위치 업데이트
-    if (mapRef.current.updatePosition) {
-      console.log('📍 updatePosition 호출');
-      mapRef.current.updatePosition(newLat, newLng);
-    } else {
-      console.error('❌ updatePosition 메서드가 없습니다');
-    }
-
-    // 경로 업데이트
-    handlePathUpdate({ lat: newLat, lng: newLng });
-
-    // 3초 후 테스트 모드 해제
-    setTimeout(() => {
-      setTestMode(false);
-      console.log('✅ 테스트 모드 해제');
-    }, 3000);
-  };
-
   // onPathUpdate 콜백 메모이제이션
   const handlePathUpdate = useCallback((c: { lat: number; lng: number }) => {
     pathRef.current.push([c.lat, c.lng]);
     setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
   }, [setPathCoordinates]);
+
+  // 기준 위치 가져오기
+  const getBasePosition = useCallback((): { lat: number; lng: number } => {
+    const fallback = currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+    const fromMap = mapRef.current?.getCurrentPosition?.();
+    const base = virtualPosition ?? fromMap ?? fallback;
+    if (!base || base.lat == null || base.lng == null) return fallback;
+    return base;
+  }, [virtualPosition, currentLocation]);
+
+  // 위/경도 50m 이동 유틸 (북=+50, 남=-50, 동=+50, 서=-50)
+  const moveByMeters = useCallback((northMeters: number, eastMeters: number) => {
+    const base = getBasePosition();
+    const latRad = (base.lat * Math.PI) / 180;
+    const dLat = northMeters / 111_000; // 위도 1도 ≈ 111km
+    const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6); // 경도 변환 안전값
+    const dLng = eastMeters / denom;
+
+    const newLat = base.lat + dLat;
+    const newLng = base.lng + dLng;
+
+    setVirtualPosition({ lat: newLat, lng: newLng });
+
+    if (mapRef.current?.updatePosition) {
+      mapRef.current.updatePosition(newLat, newLng);
+    } else {
+      console.error('❌ updatePosition 메서드가 없습니다');
+    }
+
+    handlePathUpdate({ lat: newLat, lng: newLng });
+  }, [getBasePosition, handlePathUpdate]);
 
   // 주기적으로 서버에 경로 업데이트
   useEffect(() => {
@@ -130,6 +114,50 @@ const Walk_new = () => {
         testMode={testMode}
       >
         <Record distance={distance} />
+
+        {/* ✅ 방향 이동 패널 (항상 표시) */}
+        <div className="absolute top-20 right-4 z-50">
+          <div className="bg-white/90 backdrop-blur rounded-xl border border-gray-200 shadow p-2">
+            <div className="grid grid-cols-3 gap-1">
+              <div />
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(50, 0)}
+                title="북쪽으로 50m"
+              >
+                N
+              </button>
+              <div />
+
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(0, -50)}
+                title="서쪽으로 50m"
+              >
+                W
+              </button>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(-50, 0)}
+                title="남쪽으로 50m"
+              >
+                S
+              </button>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg border shadow text-sm font-medium"
+                onClick={() => moveByMeters(0, 50)}
+                title="동쪽으로 50m"
+              >
+                E
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="absolute bottom-0 w-full flex justify-center">
           <Operator
             onMark={() => setMarkRequested(true)}
@@ -142,23 +170,9 @@ const Walk_new = () => {
               cancelText: '아니요',
             }}
           />
-
         </div>
-
-        {/* 테스트용 가상 이동 버튼 (개발 환경에서만 표시) */}
-        {process.env.NODE_ENV === 'development' && (
-          <button
-            onClick={handleVirtualMove}
-            className={`absolute top-20 right-4 px-3 py-2 rounded-lg text-sm font-medium shadow-lg z-50 ${testMode
-              ? 'bg-red-500 text-white'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            disabled={testMode}
-          >
-            {testMode ? '이동 중...' : 'TEST: 남쪽 50m'}
-          </button>
-        )}
       </KakaoMap>
+
       <input
         ref={fileInputRef}
         type="file"
