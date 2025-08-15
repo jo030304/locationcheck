@@ -1,15 +1,94 @@
+// WalkRecordDetails.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useRecoilValue } from 'recoil';
 import { nameState } from '../hooks/animalInfoAtoms';
 import { startWalk, getWalkDiaryDetails } from '../services/walks';
 import Profile from '../hooks/Profile';
+import Dimmer from '../hooks/Dimmer';
 
+/* ----------------------------- Confirm Modal ----------------------------- */
+type ConfirmModalProps = {
+  open: boolean;
+  title: string;
+  subtitle?: string;
+  confirmText?: string;
+  cancelText?: string;
+  loading?: boolean;
+  onConfirm: () => void | Promise<void>;
+  onCancel: () => void;
+};
+
+function ConfirmModal({
+  open,
+  title,
+  subtitle,
+  confirmText = '예',
+  cancelText = '아니요',
+  loading = false,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
+  // body 스크롤 잠금
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      {/* 배경 그림자 (opacity=0.4) */}
+      <Dimmer opacity={0.4} z={50} onClick={onCancel} />
+
+      {/* 카드 */}
+      <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="relative bg-[#FEFFFA] rounded-2xl px-5 py-5 w-[309px] h-[182px] max-w-[90%] shadow-xl flex flex-col justify-between"
+        >
+          <div className="flex flex-col items-center gap-3 text-center mt-2">
+            <p className="text-[18px] font-semibold leading-snug">{title}</p>
+            {subtitle && (
+              <p className="text-sm text-[#616160] leading-relaxed whitespace-pre-line">
+                {subtitle}
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-3 w-full mt-2">
+            <button
+              onClick={onCancel}
+              className="flex-1 h-[48px] bg-[#E5E7EB] text-[#616160] rounded-xl text-[16px] font-medium cursor-pointer active:opacity-90"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="flex-1 h-[48px] bg-[#4FA65B] text-white rounded-xl text-[16px] font-medium cursor-pointer disabled:opacity-60 active:opacity-90"
+            >
+              {loading ? '시작 중…' : confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* --------------------------- WalkRecordDetails --------------------------- */
 export default function WalkRecordDetails() {
   const { walkRecordId } = useParams();
   const location = useLocation();
   const [details, setDetails] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const navigate = useNavigate();
   const dogName = useRecoilValue(nameState);
 
@@ -32,7 +111,6 @@ export default function WalkRecordDetails() {
         });
         return;
       }
-
       setIsLoading(true);
       try {
         const response = await getWalkDiaryDetails(walkRecordId);
@@ -71,6 +149,29 @@ export default function WalkRecordDetails() {
     return `${meters}m`;
   };
 
+  const handleStartButton = () => setConfirmOpen(true);
+
+  const handleConfirmStart = async () => {
+    setStarting(true);
+    try {
+      if (details?.course_id || details?.courseId) {
+        await startWalk({
+          walk_type: 'EXISTING_COURSE',
+          course_id: details.course_id || details.courseId,
+        });
+        setConfirmOpen(false);
+        navigate('/walk_countdown?state=existing', { state: { from: 'exist' } });
+      } else {
+        setConfirmOpen(false);
+        navigate('/walk_new');
+      }
+    } catch {
+      alert('산책을 시작할 수 없습니다.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
   if (isLoading || !details) {
     return (
       <div className="w-full h-screen max-w-sm mx-auto bg-[#FEFFFA] rounded-xl shadow-lg px-6 py-8 relative">
@@ -100,8 +201,8 @@ export default function WalkRecordDetails() {
       <div className="flex items-center gap-2 mt-6 mb-6">
         <Profile scale={1.4} basePadding={2.5} />
         <p className="text-[17px] font-semibold">
-          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>와 함께한{' '}
-          {details.course_name || details.courseName || '코스'}
+          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>
+          와 함께한 {details.course_name || details.courseName || '코스'}
         </p>
       </div>
 
@@ -113,8 +214,8 @@ export default function WalkRecordDetails() {
             {details.distance_meters
               ? formatDistance(details.distance_meters)
               : details.distanceMeters
-                ? formatDistance(details.distanceMeters)
-                : '0m'}
+              ? formatDistance(details.distanceMeters)
+              : '0m'}
           </p>
         </div>
         <div>
@@ -139,9 +240,7 @@ export default function WalkRecordDetails() {
               src={details.path_image_url || details.pathImageUrl}
               alt="산책 경로"
               className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               draggable={false}
             />
           ) : (
@@ -159,25 +258,21 @@ export default function WalkRecordDetails() {
       <div className="absolute bottom-0 left-0 w-full px-6 pb-6 bg-white">
         <button
           className="w-full py-3 rounded-xl text-[16px] font-semibold bg-[#4FA65B] text-white cursor-pointer active:opacity-90"
-          onClick={async () => {
-            if (details.course_id || details.courseId) {
-              try {
-                await startWalk({
-                  walk_type: 'EXISTING_COURSE',
-                  course_id: details.course_id || details.courseId,
-                });
-                navigate('/walk_countdown', { state: { from: 'exist' } });
-              } catch {
-                alert('산책을 시작할 수 없습니다.');
-              }
-            } else {
-              navigate('/walk_new');
-            }
-          }}
+          onClick={handleStartButton}
         >
           이 코스로 다시 산책하기
         </button>
       </div>
+
+      {/* 모달 */}
+      <ConfirmModal
+        open={confirmOpen}
+        title="기억에 남았던 산책명소"
+        subtitle="이 코스로 다시 산책할까요?"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleConfirmStart}
+        loading={starting}
+      />
     </div>
   );
 }

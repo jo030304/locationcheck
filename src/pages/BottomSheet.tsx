@@ -216,7 +216,7 @@ export default function BottomSheet({ mapRef }: Props) {
               <div className="flex items-center gap-2 mb-3">
                 <Profile basePadding={2} />
                 <p className="text-[13px] text-gray-600">
-                  <span className="font-medium text-gray-900">{name || '반려견'}</span>를 위한 추천
+                  <span className="font-medium text-[#4FA65B]">{name || '반려견'}</span>를 위한 추천
                 </p>
                 <span
                   onClick={() => navigate('/recommended_course_list')}
@@ -279,7 +279,7 @@ export default function BottomSheet({ mapRef }: Props) {
                   <Profile basePadding={2}
                   />
                   <p className="text-[13px] text-gray-600">
-                    <span className="font-medium text-gray-900">{name || '반려견'}</span>의 산책 일지
+                    <span className="font-medium text-[#4FA65B]">{name || '반려견'}</span>의 산책 일지
                   </p>
                   <span
                     onClick={() => navigate('/walk_records')}

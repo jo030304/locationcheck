@@ -131,7 +131,18 @@ const Walk_new = () => {
       >
         <Record distance={distance} />
         <div className="absolute bottom-0 w-full flex justify-center">
-          <Operator onMark={() => setMarkRequested(true)} mapRef={mapRef} />
+          <Operator
+            onMark={() => setMarkRequested(true)}
+            mapRef={mapRef}
+            confirmOnPause={false}
+            endModal={{
+              message: '코스를 등록할까요?',
+              subMessage: '이웃에게 나만의 산책 멍소가 공유됩니다.',
+              confirmText: '예',
+              cancelText: '아니요',
+            }}
+          />
+
         </div>
 
         {/* 테스트용 가상 이동 버튼 (개발 환경에서만 표시) */}

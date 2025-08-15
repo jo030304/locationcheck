@@ -1,9 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import KakaoMap from './KakaoMap';
-import Record from './Record';
 import Operator from './Operator';
-import StopButton from './StopButton';
 import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import {
   walkDistanceMetersState,
@@ -11,224 +9,288 @@ import {
   walkStartedAtState,
   walkMarkingCountState,
   walkPathCoordinatesState,
+  currentLocationState,
+  mapCaptureImageState,
 } from '../hooks/walkAtoms';
-import {
-  endWalk,
-  saveTailcopterScore,
-  updateWalkTrack,
-  startWalk,
-} from '../services/walks';
+import { endWalk, updateWalkTrack } from '../services/walks';
 import { createPresignedUrl, uploadToS3 } from '../services/upload';
 import { createMarkingPhoto } from '../services/marking';
-import { getCourseRecommendations, getCourseDetails } from '../services/courses';
+import { getCourseDetails } from '../services/courses';
+import CourseRecord from './CourseRecord';
+
+const RECORD_AFTER_PATH = '/walk_record_after_walk';
 
 const Walk_existing = () => {
   const navigate = useNavigate();
-  const [markRequested, setMarkRequested] = useState(false);
+  const location = useLocation() as any;
+
+  // ---- 거리/경로/식별자 Recoil ----
   const [distance, setDistance] = useRecoilState(walkDistanceMetersState);
-  const [buttonsDisabled, setButtonsDisabled] = useState(false);
-  const [showStopModal, setShowStopModal] = useState(false);
   const [walkRecordId, setWalkRecordId] = useRecoilState(walkRecordIdState);
   const [startedAt, setStartedAt] = useRecoilState(walkStartedAtState);
-  const pathRef = useRef<number[][]>([]);
-  const mapRef = useRef<any>(null);
   const [markingCount, setMarkingCount] = useRecoilState(walkMarkingCountState);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pathCoordinates, setPathCoordinates] = useRecoilState(
     walkPathCoordinatesState
   );
-  
-  // 코스 선택 관련 상태
-  const [showCourseSelection, setShowCourseSelection] = useState(true);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const setMapCaptureImage = useSetRecoilState(mapCaptureImageState);
 
-  // 사용자 위치 가져오기 및 추천 코스 로드
+  // ---- 기타 상태 ----
+  const [markRequested, setMarkRequested] = useState(false);
+  const mapRef = useRef<any>(null);
+  const pathRef = useRef<number[][]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ---- 위치/테스트 모드 ----
+  const currentLocation = useRecoilValue(currentLocationState);
+  const [testMode, setTestMode] = useState(false);
+  const [virtualPosition, setVirtualPosition] =
+    useState<{ lat: number; lng: number } | null>(null);
+
+  // 출발 기준(앵커) (필요 시 확장용)
+  const firstTrackRef = useRef<{ lat: number; lng: number } | null>(null);
+  const initialFixRef = useRef<{ lat: number; lng: number } | null>(currentLocation ?? null);
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setUserLocation({ lat, lng });
-          
-          // 추천 코스 로드
-          try {
-            setLoading(true);
-            const response = await getCourseRecommendations({
-              latitude: lat,
-              longitude: lng,
-              radius: 2000,
-              sortBy: 'tailcopterScoreDesc',
-              page: 1,
-              size: 10,
-            });
-            setCourses((response as any)?.data?.courses || []);
-          } catch (error) {
-            console.error('Failed to load courses:', error);
-          } finally {
-            setLoading(false);
-          }
-        },
-        (error) => {
-          console.error('Failed to get location:', error);
-          setLoading(false);
-        }
-      );
+    if (currentLocation && !initialFixRef.current) {
+      initialFixRef.current = { lat: currentLocation.lat, lng: currentLocation.lng };
     }
+  }, [currentLocation]);
+
+  // ---- 코스 정보 ----
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+
+  const incomingCourse =
+    location?.state?.course ??
+    location?.state?.selectedCourse ??
+    null;
+
+  const incomingCourseId =
+    location?.state?.courseId ??
+    incomingCourse?.course_id ??
+    incomingCourse?.id ??
+    incomingCourse?.courseId ??
+    null;
+
+  const ssCourseRaw = typeof window !== 'undefined' ? sessionStorage.getItem('selected_course') : null;
+  const ssCourseIdRaw = typeof window !== 'undefined' ? sessionStorage.getItem('selected_course_id') : null;
+  const ssCourse = ssCourseRaw ? safeJsonParse(ssCourseRaw) : null;
+  const ssCourseId = ssCourseIdRaw ?? (ssCourse?.course_id || ssCourse?.id || ssCourse?.courseId);
+
+  useEffect(() => {
+    let active = true;
+
+    const bootstrap = async () => {
+      try {
+        if (incomingCourse && active) {
+          setSelectedCourse(incomingCourse);
+          return;
+        }
+        if (!incomingCourse && ssCourse && active) {
+          setSelectedCourse(ssCourse);
+          return;
+        }
+
+        const idToFetch = incomingCourseId || ssCourseId;
+        if (idToFetch && active) {
+          const res = await getCourseDetails(idToFetch);
+          const data = (res as any)?.data ?? res;
+          setSelectedCourse(data?.data ?? data ?? null);
+        }
+      } catch (e) {
+        console.error('Failed to fetch course details:', e);
+      }
+    };
+
+    bootstrap();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 코스 선택 및 산책 시작
-  const handleCourseSelect = async (course: any) => {
-    try {
-      setLoading(true);
-      
-      // 코스 상세 정보 가져오기
-      const courseDetails = await getCourseDetails(course.course_id);
-      setSelectedCourse(courseDetails);
-      
-      // 산책 시작
-      const res = await startWalk({
-        walk_type: 'EXISTING_COURSE',
-        course_id: course.course_id,
-      });
-      
-      const data = (res as any)?.data ?? res;
-      const walkId = data?.walk_record_id || data?.data?.walk_record_id;
-      
-      if (walkId) {
-        setWalkRecordId(walkId);
-        setStartedAt(Date.now());
-        setDistance(0);
-        setMarkingCount(0);
-        setPathCoordinates([]);
-        setShowCourseSelection(false);
-      }
-    } catch (error) {
-      console.error('Failed to start walk:', error);
-      alert('산책을 시작할 수 없습니다. 다시 시도해주세요.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 주기적으로 서버에 경로 업데이트
-  useEffect(() => {
-    if (!showCourseSelection && walkRecordId) {
-      const iv = setInterval(() => {
-        if (pathRef.current.length === 0) return;
-        const durationSec = startedAt
-          ? Math.floor((Date.now() - startedAt) / 1000)
-          : Math.floor(distance / 1);
-        updateWalkTrack(walkRecordId, {
-          currentPathCoordinates: pathRef.current,
-          currentDistanceMeters: Math.floor(distance),
-          currentDurationSeconds: durationSec,
-        }).catch(() => {});
-      }, 4000);
-      return () => clearInterval(iv);
-    }
-  }, [walkRecordId, startedAt, distance, showCourseSelection]);
-
-  // 산책 종료 처리
-  const handleEndWalk = async () => {
-    if (!walkRecordId) return;
-    
-    try {
-      const durationSec = startedAt 
-        ? Math.floor((Date.now() - startedAt) / 1000)
-        : 0;
-      
-      await endWalk(walkRecordId, {
-        finalDurationSeconds: durationSec,
-        finalDistanceMeters: Math.floor(distance),
-        finalPathCoordinates: pathRef.current,
-      });
-      
-      navigate('/koricopter');
-    } catch (error) {
-      console.error('Failed to end walk:', error);
-    }
-  };
-
-  // 코스 선택 화면
-  if (showCourseSelection) {
+  // 상단 배너 카피
+  const courseName = useMemo(() => {
+    const c = selectedCourse;
+    if (!c) return '';
     return (
-      <div className="w-full h-screen bg-gray-50">
-        {/* 헤더 */}
-        <div className="bg-white shadow-sm px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate('/homepage')}
-              className="text-gray-600"
-            >
-              ← 뒤로
-            </button>
-            <h1 className="text-lg font-semibold">기존 코스 선택</h1>
-            <div className="w-8"></div>
-          </div>
-        </div>
-
-        {/* 코스 목록 */}
-        <div className="p-4">
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="text-gray-500">코스를 불러오는 중...</div>
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64">
-              <div className="text-gray-500 mb-4">주변에 추천 코스가 없습니다</div>
-              <button
-                onClick={() => navigate('/homepage')}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg"
-              >
-                돌아가기
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <h2 className="text-sm text-gray-600 mb-2">우리 동네 추천 코스</h2>
-              {courses.map((course) => (
-                <div
-                  key={course.course_id}
-                  onClick={() => handleCourseSelect(course)}
-                  className="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-lg">{course.course_name}</h3>
-                    <span className="text-sm text-green-600">
-                      꼬리점수 {course.average_tailcopter_score || 0}점
-                    </span>
-                  </div>
-                  <div className="flex gap-4 text-sm text-gray-600">
-                    <span>거리: {(course.course_length_meters / 1000).toFixed(1)}km</span>
-                    <span>난이도: {course.difficulty}</span>
-                    <span>추천 크기: {course.recommended_pet_size}</span>
-                  </div>
-                  {course.selected_features && course.selected_features.length > 0 && (
-                    <div className="flex gap-2 mt-2">
-                      {course.selected_features.map((feature: string, idx: number) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-gray-100 text-xs rounded"
-                        >
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      c?.data?.course_name ??
+      c?.data?.course?.course_name ??
+      c?.course_name ??
+      c?.course?.course_name ??
+      c?.courseName ??
+      c?.name ??
+      ''
     );
-  }
+  }, [selectedCourse]);
 
-  // 산책 화면
+  const totalDistanceMeters = useMemo(() => {
+    const c = selectedCourse;
+    if (!c) return 0;
+    return (
+      c?.data?.course_length_meters ??
+      c?.data?.course?.course_length_meters ??
+      c?.course_length_meters ??
+      c?.course?.course_length_meters ??
+      c?.courseLengthMeters ??
+      0
+    );
+  }, [selectedCourse]);
+
+  // ✅ 최소 진행거리: 전체 거리의 50%
+  const MIN_PROGRESS_METERS = useMemo(
+    () => (totalDistanceMeters > 0 ? totalDistanceMeters * 0.5 : Number.POSITIVE_INFINITY),
+    [totalDistanceMeters]
+  );
+
+  // ✅ 전체 코스 경로(회색) 프리셋
+  const basePath = useMemo(() => extractCoursePath(selectedCourse), [selectedCourse]);
+
+  // ✅ 끝점은 저장된 경로의 마지막 좌표
+  const finishLatLng = useMemo(() => {
+    if (!basePath || basePath.length === 0) return null;
+    const [lat, lng] = basePath[basePath.length - 1];
+    return { lat, lng };
+  }, [basePath]);
+
+  // ✅ “산책 완료” 모달 상태 + 중복 방지 ref
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const finishShownRef = useRef(false);
+
+  // ---- 경로 갱신 콜백 ----
+  const handlePathUpdate = useCallback(
+    (c: { lat: number; lng: number }) => {
+      if (!firstTrackRef.current) firstTrackRef.current = { lat: c.lat, lng: c.lng };
+      pathRef.current.push([c.lat, c.lng]);
+      setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
+    },
+    [setPathCoordinates]
+  );
+
+  // ---- 테스트: 가상 이동 ----
+  const handleVirtualMove = () => {
+    if (!mapRef.current) return;
+    let basePos =
+      virtualPosition ??
+      mapRef.current.getCurrentPosition?.() ??
+      currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+
+    const newLat = basePos.lat - 0.00045; // ≈ 50m
+    const newLng = basePos.lng;
+
+    setTestMode(true);
+    setVirtualPosition({ lat: newLat, lng: newLng });
+
+    if (mapRef.current.updatePosition) {
+      mapRef.current.updatePosition(newLat, newLng);
+    }
+    handlePathUpdate({ lat: newLat, lng: newLng });
+
+    setTimeout(() => setTestMode(false), 3000);
+  };
+
+  // ---- 주기적 경로 업로드 ----
+  useEffect(() => {
+    if (!walkRecordId) return;
+    const iv = setInterval(() => {
+      if (pathRef.current.length === 0) return;
+      const durationSec = startedAt
+        ? Math.floor((Date.now() - startedAt) / 1000)
+        : Math.floor(distance / 1);
+      updateWalkTrack(walkRecordId, {
+        currentPathCoordinates: pathRef.current,
+        currentDistanceMeters: Math.floor(distance),
+        currentDurationSeconds: durationSec,
+      }).catch(() => {});
+    }, 4000);
+    return () => clearInterval(iv);
+  }, [walkRecordId, startedAt, distance]);
+
+  // ---- (끝점 자동) 산책 종료 ----
+  const handleEndWalk = async () => {
+    // 0) 모달/백드롭 먼저 숨김
+    setShowFinishModal(false);
+    // DOM 반영 대기
+    await waitForPaint();
+    await waitForPaint();
+
+    // 1) 지도 스크린샷
+    try {
+      if (mapRef.current?.captureMap) {
+        const capturedImage = await mapRef.current.captureMap();
+        if (capturedImage) setMapCaptureImage(capturedImage);
+      }
+    } catch (capErr) {
+      console.warn('Map capture failed (continuing anyway):', capErr);
+    }
+
+    // 2) 저장은 백그라운드로
+    if (walkRecordId) {
+      const durationSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+      (async () => {
+        try {
+          await endWalk(walkRecordId, {
+            finalDurationSeconds: durationSec,
+            finalDistanceMeters: Math.floor(distance),
+            finalPathCoordinates: pathRef.current,
+          });
+        } catch (e) {
+          console.error('Failed to end walk (background):', e);
+        }
+      })();
+    }
+
+    // 3) 즉시 이동
+    navigate('/koricopter?result=yes');
+  };
+
+  // ✅ 끝점 20m 이내 + 최소 진행거리(50%) 충족 시 모달
+  useEffect(() => {
+    if (!finishLatLng || !currentLocation) return;
+    if (finishShownRef.current) return;
+
+    if (distance < MIN_PROGRESS_METERS) return;
+
+    const d = haversine(
+      currentLocation.lat,
+      currentLocation.lng,
+      finishLatLng.lat,
+      finishLatLng.lng
+    );
+
+    if (d <= 20) {
+      finishShownRef.current = true;
+      setShowFinishModal(true);
+    }
+  }, [currentLocation, finishLatLng, distance, MIN_PROGRESS_METERS]);
+
+  // 모달 state 업데이트 반영 대기
+  const waitForPaint = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+  /** -------------------- Operator 종료 모달 오버라이드 (이 페이지에서만) -------------------- */
+  // 계속하기(확인): 상태 유지 + 현재 위치로 카메라 이동
+  const handleEndKeepWalking = useCallback(() => {
+    // Operator가 모달을 닫은 뒤 호출됨(오버레이 제거 완료)
+    mapRef.current?.moveToMyLocation?.();
+  }, []);
+
+  // 종료하기(취소): 모달/그림자 제거 후 스샷 → record_after 이동
+  const handleEndToRecordAfter = useCallback(async () => {
+    // Operator 내부에서 이미 setShowEndModal(false) 된 상태
+    await waitForPaint();
+    await waitForPaint();
+
+    try {
+      if (mapRef.current?.captureMap) {
+        const capturedImage = await mapRef.current.captureMap();
+        if (capturedImage) setMapCaptureImage(capturedImage);
+      }
+    } catch (capErr) {
+      console.warn('Map capture on end (record_after) failed:', capErr);
+    }
+
+    navigate(RECORD_AFTER_PATH);
+  }, [navigate, setMapCaptureImage]);
+
   return (
     <div>
       <KakaoMap
@@ -239,29 +301,59 @@ const Walk_existing = () => {
         }}
         drawingEnabled={true}
         onDistanceChange={(d) => setDistance(d)}
-        walkId={walkRecordId || undefined}
-        onPathUpdate={(c) => {
-          pathRef.current.push([c.lat, c.lng]);
-          setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
-        }}
+        walkId={walkRecordId || 'unknown'}
+        onPathUpdate={handlePathUpdate}
         ref={mapRef}
+        initialPosition={currentLocation}
+        testMode={testMode}
+        // ✅ 전체 코스(회색) 프리셋 경로 전달
+        basePath={basePath}
+        basePathOptions={{
+          strokeColor: '#CCCCCC',
+          strokeWeight: 5,
+          strokeOpacity: 1,
+          strokeStyle: 'solid',
+        }}
       >
-        <Record distance={distance} />
+        {(courseName || totalDistanceMeters > 0) && (
+          <CourseRecord
+            distance={distance}
+            courseName={courseName}
+            totalDistanceMeters={totalDistanceMeters}
+          />
+        )}
+
         <div className="absolute bottom-0 w-full flex justify-center">
-          <Operator onMark={() => setMarkRequested(true)} />
+          <Operator
+            onMark={() => setMarkRequested(true)}
+            mapRef={mapRef}
+            confirmOnPause={true}
+            endModal={{
+              message: '산책을 종료할까요?',
+              subMessage: '코스를 끝까지 마치지 않으면\n꼬리콥터를 흔들 수 없어요.',
+              confirmText: '계속하기',
+              cancelText: '종료하기',
+            }}
+            // ✅ 이 페이지에서만 동작 오버라이드
+            onEndConfirmOverride={handleEndKeepWalking}
+            onEndCancelOverride={handleEndToRecordAfter}
+          />
         </div>
-        
-        {/* 선택된 코스 정보 표시 */}
-        {selectedCourse && (
-          <div className="absolute top-4 left-4 right-4 bg-white rounded-lg shadow-md p-3">
-            <h3 className="font-semibold">{selectedCourse.data?.course_name || selectedCourse.course_name}</h3>
-            <p className="text-sm text-gray-600">
-              목표 거리: {((selectedCourse.data?.course_length_meters || selectedCourse.course_length_meters || 0) / 1000).toFixed(1)}km
-            </p>
-          </div>
+
+        {process.env.NODE_ENV === 'development' && (
+          <button
+            onClick={handleVirtualMove}
+            className={`absolute top-20 right-4 px-3 py-2 rounded-lg text-sm font-medium shadow-lg z-50 ${
+              testMode ? 'bg-red-500 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+            disabled={testMode}
+          >
+            {testMode ? '이동 중...' : 'TEST: 남쪽 50m'}
+          </button>
         )}
       </KakaoMap>
-      
+
+      {/* 마킹 사진 업로드 인풋 (숨김) */}
       <input
         ref={fileInputRef}
         type="file"
@@ -269,6 +361,7 @@ const Walk_existing = () => {
         className="hidden"
         onChange={async (e) => {
           const file = e.target.files?.[0];
+          const inputElement = e.currentTarget;
           if (!file) return;
           try {
             const pos = mapRef.current?.getCurrentPosition?.();
@@ -286,41 +379,72 @@ const Walk_existing = () => {
             const fileUrl = d?.data?.fileUrl || d?.fileUrl;
             if (uploadUrl) await uploadToS3(uploadUrl, file);
             if (fileUrl) {
-              await createMarkingPhoto({
+              const savedRes = await createMarkingPhoto({
                 walkRecordId,
                 latitude: lat,
                 longitude: lng,
                 photoUrl: fileUrl,
               });
-              setMarkingCount((prev) => prev + 1);
+              setMarkingCount((c) => c + 1);
+
+              const previewUrl = URL.createObjectURL(file);
+              const saved = (savedRes as any)?.data ?? savedRes;
+              const markingPhotoId =
+                saved?.id || saved?.markingPhotoId || saved?.data?.id || undefined;
+
+              const payload = {
+                fileUrl,
+                previewUrl,
+                lat,
+                lng,
+                ts: Date.now(),
+                markingPhotoId,
+              };
+              sessionStorage.setItem('last_marking_photo', JSON.stringify(payload));
+
+              try {
+                const KEY = 'marking_photos';
+                const item = { fileUrl, lat, lng, ts: payload.ts, markingPhotoId };
+                const prev: any[] = JSON.parse(localStorage.getItem(KEY) || '[]');
+                const exists = prev.some(
+                  (p) =>
+                    (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
+                    (!markingPhotoId &&
+                      p.fileUrl === fileUrl &&
+                      p.ts === payload.ts)
+                );
+                const next = exists ? prev : [item, ...prev].slice(0, 200);
+                localStorage.setItem(KEY, JSON.stringify(next));
+              } catch {}
+
+              navigate('/marking_photozone', { state: payload });
             }
-          } catch (error) {
-            console.error('Failed to upload marking photo:', error);
+          } catch (err) {
+            console.error('마킹 업로드 실패:', err);
+          } finally {
+            if (inputElement) inputElement.value = '';
           }
         }}
       />
-      
-      <StopButton
-        disabled={buttonsDisabled}
-        onClick={() => setShowStopModal(true)}
-      />
-      
-      {showStopModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">산책을 종료하시겠습니까?</h3>
-            <div className="flex gap-3">
+
+      {/* ✅ 산책 완료 모달 */}
+      {showFinishModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+        >
+          <div className="bg-[#FEFFFA] rounded-2xl px-5 py-5 w-[309px] h-[182px] max-w-[90%] max-h-[90%] sm:w-[309px] sm:h-[182px] text-center shadow-xl flex flex-col justify-between">
+            <div className="flex flex-col items-center flex-1 justify-center">
+              <h3 className="text-[18px] font-bold">산책 완료!</h3>
+              <p className="mt-2 text-sm text-[#616160] leading-tight whitespace-pre-line">
+                {'목표한 코스를 모두 산책했어요.\n산책을 종료할게요.'}
+              </p>
               <button
-                onClick={() => setShowStopModal(false)}
-                className="flex-1 py-2 border border-gray-300 rounded-lg"
-              >
-                취소
-              </button>
-              <button
+                type="button"
                 onClick={handleEndWalk}
-                className="flex-1 py-2 bg-red-500 text-white rounded-lg"
+                className="mt-7 w-[280px] h-[48px] bg-[#4FA65B] text-white rounded-xl text-[16px] font-medium cursor-pointer"
               >
-                종료
+                확인
               </button>
             </div>
           </div>
@@ -331,3 +455,63 @@ const Walk_existing = () => {
 };
 
 export default Walk_existing;
+
+// 안전 파서
+function safeJsonParse(s: string) {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+// ✅ 코스 좌표 안전 추출
+function extractCoursePath(course: any): Array<[number, number]> {
+  if (!course) return [];
+  const c = course?.data ?? course;
+
+  const candidates =
+    c?.coursePath ||
+    c?.pathCoordinates ||
+    c?.path_points ||
+    c?.path ||
+    c?.coordinates ||
+    c?.course?.coursePath ||
+    c?.course?.pathCoordinates ||
+    c?.course?.coordinates;
+
+  if (Array.isArray(candidates) && candidates.length > 0) {
+    const norm = candidates
+      .map((p: any) => {
+        if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])] as [number, number];
+        if (p && typeof p === 'object') {
+          const lat = p.lat ?? p.latitude;
+          const lng = p.lng ?? p.longitude;
+          if (lat != null && lng != null) return [Number(lat), Number(lng)] as [number, number];
+        }
+        return null;
+      })
+      .filter(Boolean) as Array<[number, number]>;
+    if (norm.length > 0) return norm;
+  }
+
+  const geo = c?.geojson ?? c?.geometry ?? c?.course?.geometry;
+  if (geo?.type === 'LineString' && Array.isArray(geo.coordinates)) {
+    const norm = geo.coordinates
+      .map((xy: any) =>
+        Array.isArray(xy) && xy.length >= 2 ? [Number(xy[1]), Number(xy[0])] as [number, number] : null
+      )
+      .filter(Boolean) as Array<[number, number]>;
+    if (norm.length > 0) return norm;
+  }
+
+  return [];
+}
+
+// ✅ 간단한 거리(m) 계산 (Haversine)
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371e3;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}

@@ -177,6 +177,20 @@ const SearchDog = () => {
         )}
       </div>
 
+      {/* 안내 문구: 강아지 이미지 아래, 버튼 위 */}
+      <p
+        className="
+          fixed left-1/2 -translate-x-1/2 z-10 pt-1
+          top-[calc(50lvh+96px)] sm:top-[calc(50lvh+104px)]
+          px-6 text-center text-[12px] leading-relaxed text-gray-500
+          transition-opacity duration-200
+          group-focus-within:opacity-0 group-focus-within:invisible
+        "
+      >
+        본 목록은 국제 공인 견종 기준으로 구성되어 있어요.
+      </p>
+
+
       {/* ✅ 버튼: 가운데 이미지 바로 아래 고정 */}
       <button
         type="button"

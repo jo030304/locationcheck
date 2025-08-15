@@ -22,7 +22,9 @@ export default function StartWalkButton() {
         // 실패해도 UX 위해 진행
       })
       .finally(() => {
-        navigate('/walk_countdown', { state: { from: 'main' } });
+        navigate('/walk_countdown?state=create', {
+          state: { startType: 'create' },
+        });
       });
   };
 

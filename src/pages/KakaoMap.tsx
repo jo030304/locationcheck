@@ -11,6 +11,13 @@ declare global {
   }
 }
 
+type BasePathOptions = {
+  strokeColor?: string;
+  strokeWeight?: number;
+  strokeOpacity?: number;
+  strokeStyle?: 'solid' | 'shortdash' | 'shortdot' | 'dash' | 'dot' | 'longdash';
+};
+
 interface KakaoMapProps {
   markRequested: boolean;
   onMarkHandled: () => void;
@@ -23,6 +30,10 @@ interface KakaoMapProps {
   children?: React.ReactNode;
   initialPosition?: { lat: number; lng: number } | null;
   testMode?: boolean;
+
+  /** 회색으로 미리 칠할 전체 코스 좌표( [lat, lng] 배열 ) */
+  basePath?: Array<[number, number]>;
+  basePathOptions?: BasePathOptions;
 }
 
 const KakaoMap = forwardRef(function KakaoMap(
@@ -38,182 +49,166 @@ const KakaoMap = forwardRef(function KakaoMap(
     children,
     initialPosition,
     testMode = false,
+
+    basePath,
+    basePathOptions,
   }: KakaoMapProps,
   ref
 ) {
   const mapRef = useRef<any>(null);
-  const currentPosRef = useRef<{ lat: number; lng: number }>({
-    lat: 0,
-    lng: 0,
-  });
-  // keep only refs to avoid unused state warnings
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const childrenWrapperRef = useRef<HTMLDivElement>(null);
+
+  const currentPosRef = useRef<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
   const coordinatesRef = useRef<{ lat: number; lng: number }[]>([]);
   const prevPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const totalDistanceRef = useRef(0);
   const customOverlayRef = useRef<any>(null);
-  const mapInitializedRef = useRef(false);
   const polylineRef = useRef<any>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const childrenWrapperRef = useRef<HTMLDivElement>(null);
-  const initialPosRef = useRef(initialPosition);
 
-  // 전역 위치 상태 구독
+  /** 회색 전체 코스 폴리라인 */
+  const basePolylineRef = useRef<any>(null);
+  /** 완료(초록) 코스 폴리라인 */
+  const progressPolylineRef = useRef<any>(null);
+  /** basePath에서 현재까지 ‘완료’된 가장 먼 인덱스 */
+  const progressIndexRef = useRef<number>(-1);
+  /** basePath 최신값 보관 */
+  const basePathRef = useRef<Array<[number, number]>>([]);
+
+  const initialPosRef = useRef(initialPosition);
   const globalLocation = useRecoilValue(currentLocationState);
   const paused = useRecoilValue(walkPausedState);
 
-  // 로딩 상태 추가
   const [isLocationLoading, setIsLocationLoading] = useState(!initialPosition && !globalLocation);
 
-  // 지도 스크린샷 캡처 함수 - 실제 지도 캡처 시도
-  const captureMap = async (): Promise<string | null> => {
-    if (!mapContainerRef.current || !mapRef.current) {
-      console.log('지도 또는 컨테이너가 없습니다');
-      return null;
+  /** Haversine 거리(m) */
+  function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371e3;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const φ1 = toRad(lat1);
+    const φ2 = toRad(lat2);
+    const Δφ = toRad(lat2 - lat1);
+    const Δλ = toRad(lng2 - lng1);
+    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  /** 현재 위치를 basePath에 스냅해서 완료 구간을 업데이트 */
+  const updateProgressForPosition = (lat: number, lng: number) => {
+    const path = basePathRef.current;
+    if (!mapRef.current || !window.kakao || !path || path.length < 2) return;
+
+    // 가장 가까운 basePath 정점 찾기
+    let nearestIdx = -1;
+    let nearestDist = Infinity;
+    for (let i = 0; i < path.length; i++) {
+      const [plat, plng] = path[i];
+      const d = haversine(lat, lng, plat, plng);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = i;
+      }
     }
 
+    // 너무 멀면(코스에서 이탈) 완료 반영 X
+    const SNAP_THRESHOLD_M = 30; // 필요시 10~50m로 조정
+    if (nearestIdx < 0 || nearestDist > SNAP_THRESHOLD_M) return;
+
+    // 뒤로 가는 건 무시하고, 가장 멀리 간 인덱스로 갱신
+    if (nearestIdx <= progressIndexRef.current) return;
+    progressIndexRef.current = nearestIdx;
+
+    // 0..nearestIdx까지를 초록 폴리라인으로 그림
+    const donePathLatLng = path
+      .slice(0, nearestIdx + 1)
+      .map(([la, ln]) => new window.kakao.maps.LatLng(la, ln));
+
+    if (!progressPolylineRef.current) {
+      progressPolylineRef.current = new window.kakao.maps.Polyline({
+        path: donePathLatLng,
+        strokeColor: '#4FA65B',
+        strokeWeight: 7,
+        strokeOpacity: 0.95,
+        strokeStyle: 'solid',
+      });
+    } else {
+      progressPolylineRef.current.setPath(donePathLatLng);
+    }
+    progressPolylineRef.current.setMap(mapRef.current);
+  };
+
+  // ----- 지도 캡처 (기존 로직 유지) -----
+  const captureMap = async (): Promise<string | null> => {
+    if (!mapContainerRef.current || !mapRef.current) return null;
     try {
-      // 먼저 전체 경로를 지도에 표시
       if (coordinatesRef.current && coordinatesRef.current.length > 0) {
         showFullPath(coordinatesRef.current);
-
-        // 지도 렌더링 대기
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((r) => setTimeout(r, 500));
       }
-
-      // @xata.io/screenshot으로 실제 UI 캡처 시도
-      console.log('@xata.io/screenshot으로 지도 캡처 시작');
-
       try {
-        // 1. 모든 UI 요소 숨기기
-        // 지도 컨트롤 숨기기
         const controls = mapContainerRef.current.querySelectorAll('[class*="control"]');
-        controls.forEach((el: any) => {
-          el.style.display = 'none';
-        });
-
-        // children (Record, Operator 등) 숨기기
-        if (childrenWrapperRef.current) {
-          childrenWrapperRef.current.style.display = 'none';
-        }
-
-        // 렌더링 대기
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // 스크린샷 캡처
+        controls.forEach((el: any) => (el.style.display = 'none'));
+        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = 'none';
+        await new Promise((r) => setTimeout(r, 100));
         const screenshot = await takeScreenshot();
-
-        if (screenshot) {
-          // 2. 모든 UI 요소 복원
-          // 컨트롤 복원
-          controls.forEach((el: any) => {
-            el.style.display = '';
-          });
-
-          // children 복원
-          if (childrenWrapperRef.current) {
-            childrenWrapperRef.current.style.display = '';
-          }
-
-          console.log('지도 캡처 성공 - 전체 화면 사용');
-          return screenshot; // 전체 화면 그대로 반환
-        }
-
+        controls.forEach((el: any) => (el.style.display = ''));
+        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = '';
+        if (screenshot) return screenshot;
         throw new Error('스크린샷 변환 실패');
-
-      } catch (imageError) {
-        console.log('@xata.io/screenshot 실패, Canvas 대체 방법 사용:', imageError);
-
-        // UI 복원 (실패 시에도 복원 필요)
+      } catch {
         const controls = mapContainerRef.current.querySelectorAll('[class*="control"]');
-        controls.forEach((el: any) => {
-          el.style.display = '';
-        });
-
-        if (childrenWrapperRef.current) {
-          childrenWrapperRef.current.style.display = '';
-        }
-
-        // 대체 방법: Canvas로 경로만 그리기
+        controls.forEach((el: any) => (el.style.display = ''));
+        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = '';
         const canvas = document.createElement('canvas');
         canvas.width = 400;
         canvas.height = 300;
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
-
-        // 깨끗한 흰색 배경
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 좌표가 없으면 빈 캔버스 반환
-        if (!coordinatesRef.current || coordinatesRef.current.length === 0) {
-          return canvas.toDataURL('image/png');
-        }
-
-        // 좌표 범위 계산
+        if (!coordinatesRef.current.length) return canvas.toDataURL('image/png');
         const coords = coordinatesRef.current;
-        const minLat = Math.min(...coords.map(c => c.lat));
-        const maxLat = Math.max(...coords.map(c => c.lat));
-        const minLng = Math.min(...coords.map(c => c.lng));
-        const maxLng = Math.max(...coords.map(c => c.lng));
-
-        // 패딩 추가 (20% 여백)
+        const minLat = Math.min(...coords.map((c) => c.lat));
+        const maxLat = Math.max(...coords.map((c) => c.lat));
+        const minLng = Math.min(...coords.map((c) => c.lng));
+        const maxLng = Math.max(...coords.map((c) => c.lng));
         const padding = 0.2;
         const latRange = maxLat - minLat || 0.001;
         const lngRange = maxLng - minLng || 0.001;
-
-        // 비율 유지를 위한 스케일 조정
         const aspectRatio = canvas.width / canvas.height;
         const dataAspectRatio = lngRange / latRange;
-
         let adjustedLatRange = latRange;
         let adjustedLngRange = lngRange;
-
-        if (dataAspectRatio > aspectRatio) {
-          adjustedLatRange = lngRange / aspectRatio;
-        } else {
-          adjustedLngRange = latRange * aspectRatio;
-        }
-
+        if (dataAspectRatio > aspectRatio) adjustedLatRange = lngRange / aspectRatio;
+        else adjustedLngRange = latRange * aspectRatio;
         const centerLat = (minLat + maxLat) / 2;
         const centerLng = (minLng + maxLng) / 2;
-
-        // 좌표를 캔버스 좌표로 변환하는 함수
-        const toCanvasX = (lng: number) => {
-          const normalized = (lng - (centerLng - adjustedLngRange / 2)) / adjustedLngRange;
-          return normalized * canvas.width * (1 - padding) + canvas.width * padding / 2;
-        };
-
-        const toCanvasY = (lat: number) => {
-          const normalized = (lat - (centerLat - adjustedLatRange / 2)) / adjustedLatRange;
-          return canvas.height - (normalized * canvas.height * (1 - padding) + canvas.height * padding / 2);
-        };
-
-        // 경로 그리기 (녹색 선)
+        const toCanvasX = (lng: number) =>
+          ((lng - (centerLng - adjustedLngRange / 2)) / adjustedLngRange) * canvas.width * (1 - padding) +
+          (canvas.width * padding) / 2;
+        const toCanvasY = (lat: number) =>
+          canvas.height -
+          (((lat - (centerLat - adjustedLatRange / 2)) / adjustedLatRange) * canvas.height * (1 - padding) +
+            (canvas.height * padding) / 2);
         ctx.strokeStyle = '#4FA65B';
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.beginPath();
-        coords.forEach((coord, index) => {
+        coords.forEach((coord, i) => {
           const x = toCanvasX(coord.lng);
           const y = toCanvasY(coord.lat);
-          if (index === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         });
         ctx.stroke();
-
-        // 시작점 마커
         const startX = toCanvasX(coords[0].lng);
         const startY = toCanvasY(coords[0].lat);
         ctx.fillStyle = '#4FA65B';
         ctx.beginPath();
         ctx.arc(startX, startY, 6, 0, Math.PI * 2);
         ctx.fill();
-
-        // 끝점 마커
         if (coords.length > 1) {
           const endX = toCanvasX(coords[coords.length - 1].lng);
           const endY = toCanvasY(coords[coords.length - 1].lat);
@@ -222,107 +217,60 @@ const KakaoMap = forwardRef(function KakaoMap(
           ctx.arc(endX, endY, 6, 0, Math.PI * 2);
           ctx.fill();
         }
-
         return canvas.toDataURL('image/png');
       }
-    } catch (error) {
-      console.error('경로 이미지 생성 실패:', error);
+    } catch (e) {
+      console.error('경로 이미지 생성 실패:', e);
       return null;
     }
   };
 
-  // 전체 경로 표시 함수
+  // ----- 현재(녹색) 경로 한 번에 보여주기 (유지) -----
   const showFullPath = (coordinates: { lat: number; lng: number }[]) => {
-    if (!mapRef.current || !window.kakao || coordinates.length === 0) return;
-
-    // 기존 polyline 제거
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-    }
-
-    // 경로 그리기
-    const path = coordinates.map(coord =>
-      new window.kakao.maps.LatLng(coord.lat, coord.lng)
-    );
-
+    if (!mapRef.current || !window.kakao || !coordinates.length) return;
+    if (polylineRef.current) polylineRef.current.setMap(null);
+    const path = coordinates.map((c) => new window.kakao.maps.LatLng(c.lat, c.lng));
     polylineRef.current = new window.kakao.maps.Polyline({
-      path: path,
+      path,
       strokeWeight: 5,
       strokeColor: '#4FA65B',
       strokeOpacity: 0.8,
-      strokeStyle: 'solid'
+      strokeStyle: 'solid',
     });
-
     polylineRef.current.setMap(mapRef.current);
 
-    // 경로가 모두 보이도록 지도 범위 설정
     const bounds = new window.kakao.maps.LatLngBounds();
-    coordinates.forEach(coord => {
-      bounds.extend(new window.kakao.maps.LatLng(coord.lat, coord.lng));
-    });
+    coordinates.forEach((c) => bounds.extend(new window.kakao.maps.LatLng(c.lat, c.lng)));
     mapRef.current.setBounds(bounds);
   };
 
-  // 카카오맵 Static Map URL 생성
   const getStaticMapUrl = (coordinates: { lat: number; lng: number }[]): string | null => {
-    if (coordinates.length === 0) return null;
-
-    // 중심점 계산
-    const centerLat = coordinates.reduce((sum, c) => sum + c.lat, 0) / coordinates.length;
-    const centerLng = coordinates.reduce((sum, c) => sum + c.lng, 0) / coordinates.length;
-
-    // Polyline 좌표 문자열 생성 (최대 100개 포인트)
-    const polylineCoords = coordinates
-      .slice(0, 100)
-      .map(c => `${c.lng},${c.lat}`)
-      .join('|');
-
-    // Static Map URL 생성
+    if (!coordinates.length) return null;
+    const centerLat = coordinates.reduce((s, c) => s + c.lat, 0) / coordinates.length;
+    const centerLng = coordinates.reduce((s, c) => s + c.lng, 0) / coordinates.length;
+    const polylineCoords = coordinates.slice(0, 100).map((c) => `${c.lng},${c.lat}`).join('|');
     const baseUrl = 'https://dapi.kakao.com/v2/maps/staticmap';
     const params = new URLSearchParams({
       center: `${centerLng},${centerLat}`,
       level: '5',
       size: '400x300',
       markers: '',
-      polyline: `5|0xFF4FA65B|0.8|solid|${polylineCoords}`
+      polyline: `5|0xFF4FA65B|0.8|solid|${polylineCoords}`,
     });
-
     return `${baseUrl}?${params.toString()}`;
   };
 
-  function calculateDistance(
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number
-  ): number {
-    const R = 6371e3;
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-    const φ1 = toRad(lat1);
-    const φ2 = toRad(lat2);
-    const Δφ = toRad(lat2 - lat1);
-    const Δλ = toRad(lng2 - lng1);
-
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // m
-  }
-
-  // removed speed-based color interpolation for now to reduce lints
-
+  // ----- 지도 초기화 -----
   useEffect(() => {
     if (!window.kakao?.maps) return;
-    const container = document.getElementById('map');
+    if (mapRef.current) return;
+    const container = mapContainerRef.current;
     if (!container) return;
-    if (mapRef.current) return; // 이미 만들어졌으면 스킵 (보조 가드)
 
-    const pos = initialPosRef.current; // 마운트 시점의 값만 사용
-    let initialLat = 36.5, initialLng = 127.5, initialLevel = 13;
+    const pos = initialPosRef.current;
+    let initialLat = 36.5,
+      initialLng = 127.5,
+      initialLevel = 13;
     if (pos) {
       initialLat = pos.lat;
       initialLng = pos.lng;
@@ -353,47 +301,66 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     const handleVisibilityChange = () => {
       if (!document.hidden && mapRef.current && currentPosRef.current.lat !== 0) {
-        // 원치 않으면 이 panTo 제거해도 됨
-        mapRef.current.panTo(
-          new window.kakao.maps.LatLng(currentPosRef.current.lat, currentPosRef.current.lng)
-        );
+        mapRef.current.panTo(new window.kakao.maps.LatLng(currentPosRef.current.lat, currentPosRef.current.lng));
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // 여기에서 mapInitializedRef.current = false 같은 건 쓰지 마!
-    };
-  }, []); // ← 의존성 비워서 '딱 1번만' 초기화
-
-
-  // ✅ 전역 위치 변경 감지
+  // ----- 회색 전체 코스 그리기 & 초기화 -----
   useEffect(() => {
-    // 테스트 모드일 때는 실제 GPS 무시
-    if (testMode) {
-      console.log('🔒 테스트 모드 활성화 - GPS 추적 일시 중지');
+    if (!mapRef.current || !window.kakao) return;
+
+    // 기존 회색/초록 오버레이 제거
+    if (basePolylineRef.current) {
+      basePolylineRef.current.setMap(null);
+      basePolylineRef.current = null;
+    }
+    if (progressPolylineRef.current) {
+      progressPolylineRef.current.setMap(null);
+      progressPolylineRef.current = null;
+    }
+    progressIndexRef.current = -1;
+
+    if (!basePath || basePath.length < 2) {
+      basePathRef.current = [];
       return;
     }
 
-    if (!globalLocation || !mapRef.current) return;
+    basePathRef.current = basePath;
 
-    // ⏸️ 일시정지면 위치/거리/경로 업데이트 전부 무시 (초기 로딩 끝난 이후)
+    const path = basePath.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng));
+    basePolylineRef.current = new window.kakao.maps.Polyline({
+      path,
+      strokeColor: basePathOptions?.strokeColor ?? '#CCCCCC',
+      strokeWeight: basePathOptions?.strokeWeight ?? 6,
+      strokeOpacity: basePathOptions?.strokeOpacity ?? 1,
+      strokeStyle: basePathOptions?.strokeStyle ?? 'solid',
+    });
+    basePolylineRef.current.setMap(mapRef.current);
+
+    // 전체가 보이도록
+    const bounds = new window.kakao.maps.LatLngBounds();
+    path.forEach((p) => bounds.extend(p));
+    mapRef.current.setBounds(bounds);
+  }, [basePath, basePathOptions]);
+
+  // ----- 위치 업데이트(실제 이동) → 진행도 칠하기 -----
+  useEffect(() => {
+    if (testMode) return;
+    if (!globalLocation || !mapRef.current) return;
     if (paused && !isLocationLoading) return;
 
     const { lat, lng } = globalLocation;
     currentPosRef.current = { lat, lng };
 
-    // 첫 위치를 받았을 때
     if (isLocationLoading) {
       setIsLocationLoading(false);
-
-      // 지도 중심 이동
-      const currentPos = new window.kakao.maps.LatLng(lat, lng);
-      mapRef.current.panTo(currentPos);
+      const cur = new window.kakao.maps.LatLng(lat, lng);
+      mapRef.current.panTo(cur);
       mapRef.current.setLevel(5);
 
-      // 마커가 없으면 생성
       if (!customOverlayRef.current) {
         const markerContent = document.createElement('div');
         markerContent.innerHTML = `
@@ -402,257 +369,165 @@ const KakaoMap = forwardRef(function KakaoMap(
             stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="transform: rotate(0deg); transition: transform 0.3s ease;">
             <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
-          </svg>
-        `;
-
-        const customOverlay = new window.kakao.maps.CustomOverlay({
-          position: currentPos,
-          content: markerContent,
-          yAnchor: 1,
-        });
-
-        customOverlay.setMap(mapRef.current);
-        customOverlayRef.current = customOverlay;
+          </svg>`;
+        const overlay = new window.kakao.maps.CustomOverlay({ position: cur, content: markerContent, yAnchor: 1 });
+        overlay.setMap(mapRef.current);
+        customOverlayRef.current = overlay;
       }
     }
 
-    // 위치 업데이트
-    const newCoord = { lat, lng };
-    const newPos = new window.kakao.maps.LatLng(lat, lng);
-
-    // 경로 그리기
-    const prevCoord = prevPosRef.current;
+    // 실시간 녹색 경로(네 기존 로직 유지)
+    const prev = prevPosRef.current;
     const drawingActive = drawingEnabled && !paused;
-    if (prevCoord && drawingActive && mapRef.current) {
-      const prevPos = new window.kakao.maps.LatLng(prevCoord.lat, prevCoord.lng);
-      const segmentDist = calculateDistance(prevCoord.lat, prevCoord.lng, lat, lng);
-
-      if (segmentDist > 1) { // 1미터 이상 이동했을 때만 그리기
+    if (prev && drawingActive && mapRef.current) {
+      const prevPos = new window.kakao.maps.LatLng(prev.lat, prev.lng);
+      const newPos = new window.kakao.maps.LatLng(lat, lng);
+      const segmentDist = haversine(prev.lat, prev.lng, lat, lng);
+      if (segmentDist > 1) {
         totalDistanceRef.current += segmentDist;
         onDistanceChange?.(totalDistanceRef.current);
+        coordinatesRef.current.push({ lat, lng });
+        onPathUpdate?.({ lat, lng });
 
-        coordinatesRef.current.push(newCoord);
-
-        // 경로 업데이트 콜백 - 실제 이동했을 때만 호출
-        onPathUpdate?.(newCoord);
-
-        const polyline = new window.kakao.maps.Polyline({
+        const poly = new window.kakao.maps.Polyline({
           path: [prevPos, newPos],
           strokeWeight: 7,
           strokeColor: '#4FA65B',
           strokeOpacity: 0.9,
           strokeStyle: 'solid',
+          zIndex: 4,
         });
-        polyline.setMap(mapRef.current);
-
-        prevPosRef.current = newCoord;
+        poly.setMap(mapRef.current);
+        prevPosRef.current = { lat, lng };
       }
-    } else if (!prevCoord && drawingActive) {
-      // 첫 위치 설정 (산책 시작 시)
-      prevPosRef.current = newCoord;
-      onPathUpdate?.(newCoord);
+    } else if (!prev && drawingActive) {
+      prevPosRef.current = { lat, lng };
+      onPathUpdate?.({ lat, lng });
     }
 
-    // 마커 위치 업데이트
+    // 👉 회색 코스 칠하기(진행도 업데이트)
+    updateProgressForPosition(lat, lng);
+
+    // 마커 이동
     if (customOverlayRef.current) {
-      customOverlayRef.current.setPosition(newPos);
+      customOverlayRef.current.setPosition(new window.kakao.maps.LatLng(lat, lng));
     }
-  }, [globalLocation, drawingEnabled, onPathUpdate, onDistanceChange, isLocationLoading]);
+  }, [globalLocation, drawingEnabled, onPathUpdate, onDistanceChange, isLocationLoading, paused, testMode]);
 
-  // ✅ 마킹 버튼 누르면 현재 위치에 커스텀 마커 찍기
-  useEffect(() => {
-    if (markRequested && mapRef.current) {
-      const { lat, lng } = currentPosRef.current;
-      if (lat === 0 && lng === 0) return;
-
-      const pos = new window.kakao.maps.LatLng(lat, lng);
-
-      const iconHTML = renderToString(
-        <MdWaterDrop
-          style={{ width: '20px', height: '20px', color: '#4FA65B' }}
-        />
-      );
-
-      const markerDiv = document.createElement('div');
-      markerDiv.innerHTML = `
-        <div style="
-          background-color: #FFD86A;
-          border-radius: 12px;
-          padding: 4px;
-          position: relative;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-          width: 30px;
-          height: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        ">
-          ${iconHTML}
-          <div style="
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-top: 10px solid #FFD86A;
-          "></div>
-        </div>
-      `;
-
-      const customOverlay = new window.kakao.maps.CustomOverlay({
-        position: pos,
-        content: markerDiv.firstElementChild as HTMLElement,
-        yAnchor: 1,
-        zIndex: 5,
-      });
-
-      customOverlay.setMap(mapRef.current);
-      mapRef.current.panTo(pos);
-      onMarkHandled();
-    }
-  }, [markRequested]);
-
-  useEffect(() => {
-    /*const interval = setInterval(() => {
-      const { lat, lng } = currentPosRef.current;
-      if (lat && lng) {
-        const payload = {
-          walkId, // 꼭 전달받은 값이어야 함
-          lat,
-          lng,
-          timestamp: new Date().toISOString(), // 또는 pos.timestamp 사용 가능
-        };
-
-        fetch(`/api/walks/${walkId}/coordinate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).catch((err) => console.error('좌표 전송 실패:', err));
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);*/
-  }, [walkId]);
-
-  useEffect(() => {
-    if (moveToMyLocationRequested && mapRef.current) {
-      const { lat, lng } = currentPosRef.current;
-      if (lat !== 0 && lng !== 0) {
-        const pos = new window.kakao.maps.LatLng(lat, lng);
-        mapRef.current.panTo(pos); // ← 내 위치로 부드럽게 이동
-        onMoveHandled?.();
-      }
-    }
-  }, [moveToMyLocationRequested]);
-
+  // ----- 가상 이동 시에도 진행도 반영 -----
   useImperativeHandle(ref, () => ({
     moveToMyLocation() {
       const { lat, lng } = currentPosRef.current;
       if (lat && lng && mapRef.current) {
         const pos = new window.kakao.maps.LatLng(lat, lng);
         mapRef.current.panTo(pos);
-        console.log('📍 지도 중심 이동 완료');
       }
     },
     getCurrentPosition() {
       return currentPosRef.current;
     },
     updatePosition(lat: number, lng: number) {
-      // 가상 위치 업데이트
-      console.log('📍 가상 위치 업데이트 시작:', {
-        새위치: { lat, lng },
-        이전위치: prevPosRef.current,
-        현재위치: currentPosRef.current
-      });
-
-      if (!mapRef.current || !window.kakao) {
-        console.error('❌ 지도 또는 kakao 객체가 없습니다');
-        return;
-      }
-
+      if (!mapRef.current || !window.kakao) return;
       const newPos = new window.kakao.maps.LatLng(lat, lng);
-
-      // 현재 위치 업데이트
       currentPosRef.current = { lat, lng };
-
-      // 마커 이동
-      if (customOverlayRef.current) {
-        customOverlayRef.current.setPosition(newPos);
-        console.log('✅ 마커 이동 완료');
-      } else {
-        console.log('⚠️ 마커가 없습니다');
-      }
-
-      // 지도 중심 이동
+      if (customOverlayRef.current) customOverlayRef.current.setPosition(newPos);
       mapRef.current.panTo(newPos);
-      console.log('✅ 지도 중심 이동 완료');
 
-      // 경로 그리기 (이전 위치가 있을 때만)
-      if (prevPosRef.current && prevPosRef.current.lat !== 0 && drawingEnabled) {
-        const prevPos = new window.kakao.maps.LatLng(prevPosRef.current.lat, prevPosRef.current.lng);
-        const segmentDist = calculateDistance(prevPosRef.current.lat, prevPosRef.current.lng, lat, lng);
-
-        console.log('📏 거리 계산:', {
-          이전: prevPosRef.current,
-          현재: { lat, lng },
-          거리: segmentDist.toFixed(2) + 'm'
-        });
-
-        if (segmentDist > 0.5) { // 0.5미터 이상 이동했을 때 그리기 (테스트용으로 낮춤)
+      const prev = prevPosRef.current;
+      if (prev && prev.lat !== 0 && drawingEnabled) {
+        const prevPos = new window.kakao.maps.LatLng(prev.lat, prev.lng);
+        const segmentDist = haversine(prev.lat, prev.lng, lat, lng);
+        if (segmentDist > 0.5) {
           totalDistanceRef.current += segmentDist;
           onDistanceChange?.(totalDistanceRef.current);
-
           coordinatesRef.current.push({ lat, lng });
-
-          // 경로 업데이트 콜백
           onPathUpdate?.({ lat, lng });
-
-          const polyline = new window.kakao.maps.Polyline({
+          const poly = new window.kakao.maps.Polyline({
             path: [prevPos, newPos],
             strokeWeight: 5,
-            strokeColor: '#FF0000', // 테스트용으로 빨간색
+            strokeColor: '#FF0000', // 테스트용 색
             strokeOpacity: 1,
-            strokeStyle: 'solid'
+            strokeStyle: 'solid',
           });
-
-          polyline.setMap(mapRef.current);
-          console.log('✅ 경로 그리기 완료');
-        } else {
-          console.log('⚠️ 거리가 너무 짧아 경로를 그리지 않음');
+          poly.setMap(mapRef.current);
         }
-      } else {
-        console.log('⚠️ 이전 위치가 없거나 그리기가 비활성화됨:', {
-          prevPosRef: prevPosRef.current,
-          drawingEnabled
-        });
       }
-
-      // 이전 위치 업데이트
       prevPosRef.current = { lat, lng };
-      console.log('✅ 이전 위치 업데이트 완료');
+
+      // 👉 가상 이동에도 진행도 업데이트
+      updateProgressForPosition(lat, lng);
     },
     captureMap,
     showFullPath,
     getStaticMapUrl,
-    getMap: () => mapRef.current
+    getMap: () => mapRef.current,
   }));
+
+  // ----- 마킹 -----
+  useEffect(() => {
+    if (!markRequested || !mapRef.current) return;
+    const { lat, lng } = currentPosRef.current;
+    if (lat === 0 && lng === 0) return;
+    const pos = new window.kakao.maps.LatLng(lat, lng);
+    const iconHTML = renderToString(<MdWaterDrop style={{ width: '20px', height: '20px', color: '#4FA65B' }} />);
+    const markerDiv = document.createElement('div');
+    markerDiv.innerHTML = `
+      <div style="
+        background-color: #FFD86A;
+        border-radius: 12px;
+        padding: 4px;
+        position: relative;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        ${iconHTML}
+        <div style="
+          position: absolute;
+          bottom: -10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 10px solid transparent;
+          border-right: 10px solid transparent;
+          border-top: 10px solid #FFD86A;
+        "></div>
+      </div>
+    `;
+    const overlay = new window.kakao.maps.CustomOverlay({
+      position: pos,
+      content: markerDiv.firstElementChild as HTMLElement,
+      yAnchor: 1,
+      zIndex: 5,
+    });
+    overlay.setMap(mapRef.current);
+    mapRef.current.panTo(pos);
+    onMarkHandled();
+  }, [markRequested, onMarkHandled]);
+
+  // ----- "내 위치로" 이동 -----
+  useEffect(() => {
+    if (!moveToMyLocationRequested || !mapRef.current) return;
+    const { lat, lng } = currentPosRef.current;
+    if (lat === 0 || lng === 0) return;
+    const pos = new window.kakao.maps.LatLng(lat, lng);
+    mapRef.current.panTo(pos);
+    onMoveHandled?.();
+  }, [moveToMyLocationRequested, onMoveHandled]);
 
   return (
     <div className="relative w-screen h-screen">
-      <div ref={mapContainerRef} id="map" className="w-full h-full z-10" />
-
-      {/* 로딩 인디케이터 */}
+      <div ref={mapContainerRef} className="w-full h-full z-10" />
       {isLocationLoading && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-3 flex items-center gap-2 z-20">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-sm text-gray-700">현재 위치 확인 중...</span>
         </div>
       )}
-
-      {/* ✅ 지도 위에 올라가지만 마우스는 통과시키고, 버튼만 클릭 가능 */}
       <div ref={childrenWrapperRef} className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none">
         <div className="pointer-events-auto">{children}</div>
       </div>

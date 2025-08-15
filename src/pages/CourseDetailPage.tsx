@@ -141,7 +141,9 @@ const CourseDetailPage = () => {
       const id = data?.data?.walk_record_id || data?.walk_record_id;
       setWalkRecordId(id || null);
       setWalkStartedAt(Date.now());
-      navigate('/walk_countdown', { state: { from: 'main', courseId } });
+      navigate('/walk_countdown?state=existing', {
+        state: { startType: 'existing', from: 'exist', courseId },
+      });
     } catch (e) {
       console.error('산책 시작 실패:', e);
       alert('산책을 시작할 수 없습니다.');
@@ -189,9 +191,9 @@ const CourseDetailPage = () => {
         {/* 3) 이미지 아래 강아지 정보 */}
         <div className="flex items-center px-5 py-3 bg-white">
           <Profile
-          className
+            className
             scale={1.5} basePadding={2}
-            />
+          />
           <div className="ml-3 leading-tight">
             {/* 이름 */}
             <div className="text-sm font-semibold text-gray-900">
