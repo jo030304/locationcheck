@@ -108,11 +108,12 @@ const SearchDog = () => {
   };
 
   return (
-    <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] px-4 pt-4 overscroll-contain">
+    <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] p-5 flex flex-col overscroll-contain group">
       {/* 🔒 가운데 고정 워터마크 */}
       <div
         aria-hidden
-        className="pointer-events-none fixed left-1/2 top-[50lvh] -translate-x-1/2 -translate-y-1/2 -z-10"
+        className="pointer-events-none fixed left-1/2 top-[50lvh] -translate-x-1/2 -translate-y-1/2 -z-10
+              transition-opacity duration-200 group-focus-within:opacity-0 group-focus-within:invisible"
       >
         <img
           src="/동네 설정 사진.png"
@@ -187,6 +188,7 @@ const SearchDog = () => {
           rounded-md border border-gray-300 bg-white px-4 py-2
           text-sm text-gray-800 shadow-sm hover:bg-gray-50
           active:scale-[0.98] transition cursor-pointer
+          transition-opacity duration-200 group-focus-within:opacity-0 group-focus-within:invisible group-focus-within:pointer-events-none
         "
       >
         믹스견/기타
