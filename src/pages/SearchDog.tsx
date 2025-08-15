@@ -110,10 +110,7 @@ const SearchDog = () => {
   return (
     <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] px-4 pt-4 overscroll-contain">
       {/* 🔒 가운데 고정 워터마크 */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 grid place-items-center"
-      >
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
         <img
           src="/동네 설정 사진.png"
           alt=""
@@ -181,7 +178,7 @@ const SearchDog = () => {
         type="button"
         onClick={() => choose(null)}
         className="
-          fixed left-1/2 top-1/2 -translate-x-1/2
+          absolute left-1/2 top-1/2 -translate-x-1/2
           translate-y-[128px] sm:translate-y-[136px]
           z-10
           inline-flex items-center justify-center

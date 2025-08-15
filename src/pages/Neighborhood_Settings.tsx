@@ -83,9 +83,9 @@ const Neighborhood_Settings = () => {
       place.city && place.areaName
         ? `${place.city} ${place.areaName}`
         : (() => {
-            const parts = address.split(' ');
-            return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : address;
-          })();
+          const parts = address.split(' ');
+          return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : address;
+        })();
 
     localStorage.setItem('selected_address_full', address);
     localStorage.setItem('selected_address_cityDistrict', cityDistrict);
@@ -114,7 +114,7 @@ const Neighborhood_Settings = () => {
   return (
     <div className="relative z-0 min-h-screen min-h-[100lvh] bg-[#FEFFFA] p-5 flex flex-col overscroll-contain">
       {/* 🔒 가운데 고정 워터마크 */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 grid place-items-center">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
         <img
           src="/동네 설정 사진.png"
           alt=""
