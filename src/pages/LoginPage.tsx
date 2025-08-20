@@ -61,7 +61,7 @@ const LoginPage = () => {
       {/* 로그인 버튼 영역 */}
       <div className="w-[90%] max-w-[350px] flex flex-col gap-3">
         <p className="flex justify-center items-center text-sm text-gray-400">
-          서비스를 이용하시려면 로그인 해주세요.
+          서비스를 이용하시려면 로그인 해주세요!
         </p>
 
         <button
