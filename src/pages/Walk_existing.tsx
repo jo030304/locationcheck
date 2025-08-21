@@ -19,6 +19,7 @@ import { createPresignedUrl, uploadToS3 } from '../services/upload';
 import { createMarkingPhoto } from '../services/marking';
 import { getCourseDetails, getCoursePhotozones } from '../services/courses';
 import CourseRecord from './CourseRecord';
+import MarkingPhotozone from './MarkingPhotozone';
 
 const RECORD_AFTER_PATH = '/walk_record_after_walk';
 
@@ -68,6 +69,12 @@ const Walk_existing = () => {
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [coursePhotozones, setCoursePhotozones] = useState<any[]>([]);
   const pinOverlaysRef = useRef<any[]>([]);
+  const didFitPinsBoundsRef = useRef(false);
+  const [photozoneModal, setPhotozoneModal] = useState<{
+    open: boolean;
+    courseId?: string | number;
+    photozoneId?: string;
+  }>({ open: false });
 
   const incomingCourse =
     location?.state?.course ?? location?.state?.selectedCourse ?? null;
@@ -218,15 +225,18 @@ const Walk_existing = () => {
       count: coursePhotozones.length,
     });
 
+    const bounds = new window.kakao.maps.LatLngBounds();
     coursePhotozones.forEach((pz: any) => {
       const lat = Number(pz.latitude ?? pz.lat ?? pz.y ?? pz[1]);
       const lng = Number(pz.longitude ?? pz.lng ?? pz.x ?? pz[0]);
+      const pinId = pz.photozone_id ?? pz.photozoneId ?? pz.id;
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      console.debug('[Walk_existing] pin', {
-        lat,
-        lng,
-        id: pz.photozone_id || pz.id,
-      });
+      if (!pinId) {
+        console.warn('[Walk_existing] skip pin without id', pz);
+        return;
+      }
+      bounds.extend(new window.kakao.maps.LatLng(lat, lng));
+      console.debug('[Walk_existing] pin', { lat, lng, id: pinId });
       // KakaoMap.tsx의 마킹 마커 UI와 동일한 구조/스타일 재사용
       const iconHTML = renderToString(
         <MdWaterDrop
@@ -274,14 +284,11 @@ const Walk_existing = () => {
           selectedCourse?.id ||
           selectedCourse?.course_id ||
           null;
-        const photozoneId =
-          pz.photozone_id || pz.id || String(lat) + ',' + String(lng);
-        console.info('[Walk_existing] pin clicked → navigate', {
-          courseIdForNav,
+        const photozoneId = String(pinId);
+        setPhotozoneModal({
+          open: true,
+          courseId: courseIdForNav,
           photozoneId,
-        });
-        navigate('/marking_photozone', {
-          state: { courseId: courseIdForNav, photozoneId },
         });
       };
 
@@ -289,11 +296,19 @@ const Walk_existing = () => {
         position: new window.kakao.maps.LatLng(lat, lng),
         content: markerEl,
         yAnchor: 1,
-        zIndex: 6,
+        zIndex: 100,
       });
       overlay.setMap(map);
       pinOverlaysRef.current.push(overlay);
     });
+
+    // 핀 최초 표시 시 한 번 화면에 모두 보이도록 Bounds fit (회색 경로 fit과 충돌 없도록 1회)
+    try {
+      if (!didFitPinsBoundsRef.current && !bounds.isEmpty()) {
+        map.setBounds(bounds);
+        didFitPinsBoundsRef.current = true;
+      }
+    } catch {}
 
     return () => {
       pinOverlaysRef.current.forEach((ov) => ov?.setMap?.(null));
@@ -554,8 +569,10 @@ const Walk_existing = () => {
         // ✅ 전체 코스(회색) 프리셋 경로 + 옵션
         basePath={basePath}
         basePathOptions={basePathOptions}
-        // ✅ 기존 코스 경로는 회색 유지, 실시간 초록은 따로: 필요 시 켬/끔 가능
+        // ✅ 기존 코스 경로는 회색 유지, 실시간 초록은 따로
         drawRealtimePolyline={true}
+        // ✅ 전체가 초록으로 변하지 않도록, 진행도 칠하기는 끔
+        enableProgressOnBasePath={false}
       >
         {(courseName || totalDistanceMeters > 0) && (
           <CourseRecord
@@ -626,6 +643,19 @@ const Walk_existing = () => {
           />
         </div>
       </KakaoMap>
+
+      {/* 포토존 모달 (전체화면 오버레이) */}
+      {photozoneModal.open && (
+        <div className="fixed inset-0 z-[70] bg-black/40">
+          <div className="absolute inset-0 bg-[#FEFFFA]">
+            <MarkingPhotozone
+              courseId={photozoneModal.courseId}
+              photozoneId={photozoneModal.photozoneId}
+              onClose={() => setPhotozoneModal({ open: false })}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 마킹 사진 업로드 인풋 (숨김) */}
       <input

@@ -49,6 +49,9 @@ interface KakaoMapProps {
 
   /** 실시간 이동 경로 폴리라인(초록) 그리기 여부 (기본값: true) */
   drawRealtimePolyline?: boolean;
+
+  /** 회색 코스 대비 진행도(초록, basePath 일부 칠하기) 표시 여부 (기본값: true) */
+  enableProgressOnBasePath?: boolean;
 }
 
 const KakaoMap = forwardRef(function KakaoMap(
@@ -68,6 +71,7 @@ const KakaoMap = forwardRef(function KakaoMap(
     basePath,
     basePathOptions,
     drawRealtimePolyline = true,
+    enableProgressOnBasePath = true,
   }: KakaoMapProps,
   ref
 ) {
@@ -591,7 +595,7 @@ const KakaoMap = forwardRef(function KakaoMap(
     }
 
     // 👉 회색 코스 칠하기(진행도 업데이트)
-    updateProgressForPosition(lat, lng);
+    if (enableProgressOnBasePath) updateProgressForPosition(lat, lng);
 
     // 마커 이동
     if (customOverlayRef.current) {
@@ -653,7 +657,7 @@ const KakaoMap = forwardRef(function KakaoMap(
       prevPosRef.current = { lat, lng };
 
       // 👉 가상 이동에도 진행도 업데이트
-      updateProgressForPosition(lat, lng);
+      if (enableProgressOnBasePath) updateProgressForPosition(lat, lng);
     },
     captureMap,
     showFullPath,

@@ -59,10 +59,18 @@ const ageLabelFromBirth = (birth?: string | null): string => {
 
 const SS_KEY = 'last_marking_photo';
 
-const MarkingPhotozone = () => {
+type MarkingPhotozoneProps = {
+  courseId?: string | number;
+  photozoneId?: string;
+  onClose?: () => void;
+};
+
+const MarkingPhotozone = (props: MarkingPhotozoneProps = {}) => {
   const { state } = useLocation() as {
     state?: PhotoState & { courseId?: string | number; photozoneId?: string };
   };
+  const effectiveCourseId = props.courseId ?? state?.courseId;
+  const effectivePhotozoneId = props.photozoneId ?? state?.photozoneId;
 
   // Recoil에서 기본 메타
   const recoilName = useRecoilValue(nameState);
@@ -163,6 +171,11 @@ const MarkingPhotozone = () => {
 
   // ---------- 최신(방금 찍은) 사진 복구 ----------
   useEffect(() => {
+    // 모달로 특정 포토존을 열었다면, 세션 최신 미리보기는 사용하지 않음(서버 집계 사진만)
+    if (effectivePhotozoneId) {
+      setLatest(null);
+      return;
+    }
     const fromState =
       state && (state.previewUrl || state.fileUrl) ? state : null;
     if (fromState) {
@@ -194,7 +207,7 @@ const MarkingPhotozone = () => {
 
   // ---------- 코스 포토존 집계 사진 조회 (핀 클릭 진입 시) ----------
   useEffect(() => {
-    const photozoneId = (state as any)?.photozoneId;
+    const photozoneId = effectivePhotozoneId;
     if (!photozoneId) return;
     let cancelled = false;
     (async () => {
@@ -203,13 +216,31 @@ const MarkingPhotozone = () => {
         const res = await getPhotozoneDetails(String(photozoneId));
         const data: any = (res as any)?.data ?? res;
         const d = data?.data ?? data;
-        const photos = Array.isArray(d?.photos) ? d.photos : [];
+        const photos = Array.isArray(d?.photos)
+          ? d.photos
+          : Array.isArray(d?.data?.photos)
+            ? d.data.photos
+            : [];
+        console.info('[MarkingPhotozone] details fetched', {
+          photozoneId,
+          keys: Object.keys(d || {}),
+          photosCount: Array.isArray(photos) ? photos.length : 0,
+          sample: Array.isArray(photos) && photos.length ? photos[0] : null,
+        });
         const mapped: PhotoState[] = photos
-          .map((p: any) => ({
-            fileUrl: p?.photo_url || p?.url,
-            ts: p?.created_at,
-            markingPhotoId: p?.photo_id || p?.id,
-          }))
+          .map((p: any) => {
+            const fileUrl =
+              p?.photo_url ||
+              p?.photoUrl ||
+              p?.image_url ||
+              p?.imageUrl ||
+              p?.url ||
+              '';
+            const ts = p?.created_at || p?.createdAt || undefined;
+            const markingPhotoId =
+              p?.photo_id || p?.photoId || p?.id || undefined;
+            return { fileUrl, ts, markingPhotoId } as PhotoState;
+          })
           .filter((x) => x.fileUrl);
         if (!cancelled) setCoursePhotos(mapped);
       } catch {
@@ -221,7 +252,7 @@ const MarkingPhotozone = () => {
     return () => {
       cancelled = true;
     };
-  }, [state]);
+  }, [effectivePhotozoneId]);
 
   // ---------- 내 정보 메타 채우기 (Recoil → 부족하면 서버) ----------
   useEffect(() => {
@@ -286,14 +317,25 @@ const MarkingPhotozone = () => {
       {/* 헤더 */}
       <div className="sticky top-0 bg-[#FEFFFA] z-10 mb-3">
         <div className="relative h-12 flex items-center justify-center px-4">
-          <button
-            onClick={() =>
-              history.length > 0 ? window.history.back() : window.history.go(-1)
-            }
-            className="absolute left-4 p-2 -ml-2 text-gray-600 cursor-pointer"
-          >
-            <FaChevronLeft />
-          </button>
+          {props.onClose ? (
+            <button
+              onClick={props.onClose}
+              className="absolute left-4 p-2 -ml-2 text-gray-600 cursor-pointer"
+            >
+              <FaChevronLeft />
+            </button>
+          ) : (
+            <button
+              onClick={() =>
+                history.length > 0
+                  ? window.history.back()
+                  : window.history.go(-1)
+              }
+              className="absolute left-4 p-2 -ml-2 text-gray-600 cursor-pointer"
+            >
+              <FaChevronLeft />
+            </button>
+          )}
           <h1 className="text-[15px] font-semibold text-gray-800">
             마킹 포토존
           </h1>
@@ -321,7 +363,7 @@ const MarkingPhotozone = () => {
         ) : (
           <section className="divide-y divide-gray-200">
             {[...coursePhotos, ...items].map((p, idx) => {
-              const src = p.previewUrl || p.fileUrl || '';
+              const src = p.fileUrl || p.previewUrl || '';
               return (
                 <article
                   key={p.markingPhotoId || `${p.fileUrl}-${p.ts}-${idx}`}
