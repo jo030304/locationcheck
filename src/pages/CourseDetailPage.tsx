@@ -305,7 +305,7 @@ const CourseDetailPage = () => {
         {/* 7) 하단 버튼 영역 (고정 해제) */}
         <div className="px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
           <div className="p-4 bg-transparent shadow-none border-0">
-            {photozones.length > 0 ? (
+            {/* {photozones.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 <StartButtonUI
                   onClick={handleStartExistingCourse}
@@ -321,13 +321,13 @@ const CourseDetailPage = () => {
                   포토존
                 </button>
               </div>
-            ) : (
-              <StartButtonUI
-                onClick={handleStartExistingCourse}
-                disabled={starting}
-                className="w-full py-4"
-              />
-            )}
+            ) : ( */}
+            <StartButtonUI
+              onClick={handleStartExistingCourse}
+              disabled={starting}
+              className="w-full py-4"
+            />
+            {/* )} */}
           </div>
         </div>
       </div>

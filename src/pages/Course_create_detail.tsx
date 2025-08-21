@@ -4,7 +4,13 @@ import { SlArrowLeft } from 'react-icons/sl';
 import { useRecoilValue } from 'recoil';
 import { walkRecordIdState, walkDistanceMetersState } from '../hooks/walkAtoms';
 import { createPresignedUrl, uploadToS3 } from '../services/upload';
-import { createCourse, getNewCourseBaseDetails } from '../services/courses';
+import {
+  createCourse,
+  getNewCourseBaseDetails,
+  getCourseDetails,
+  getCoursePhotozones,
+} from '../services/courses';
+import { getPhotozoneDetails } from '../services/marking';
 const course_create_detail = () => {
   const navigate = useNavigate(); // 추가
 
@@ -59,9 +65,9 @@ const course_create_detail = () => {
         const data = pre?.data ?? pre;
         const uploadUrl = data?.data?.uploadUrl || data?.uploadUrl;
         const fileUrl = data?.data?.fileUrl || data?.fileUrl;
-        
+
         console.log('Presigned URL 받음:', { uploadUrl, fileUrl });
-        
+
         if (uploadUrl && fileObj) {
           await uploadToS3(uploadUrl, fileObj);
           coverUrl = fileUrl;
@@ -88,17 +94,51 @@ const course_create_detail = () => {
           .slice(0, 3),
         coverImageUrl: coverUrl,
       };
-      
+
       console.log('코스 생성 요청:', coursePayload);
-      
+
       const response = await createCourse(coursePayload);
       console.log('코스 생성 성공:', response);
-      
+      // 생성 후 코스에 연동된 포토존이 있는지 검증 로그 (조회)
+      try {
+        const respData: any = (response as any)?.data ?? response;
+        const courseId = respData?.data?.courseId || respData?.courseId;
+        console.info('[Course_create] created courseId', courseId);
+        if (courseId) {
+          try {
+            const detail = await getCourseDetails(courseId);
+            const d: any = (detail as any)?.data ?? detail;
+            const course = d?.data ?? d;
+            const mps = course?.markingPhotozones ?? [];
+            console.info('[Course_create] course details after create', {
+              markingPhotozonesCount: Array.isArray(mps) ? mps.length : 0,
+              sample: Array.isArray(mps) && mps.length ? mps[0] : null,
+            });
+          } catch (e) {
+            console.warn('[Course_create] getCourseDetails failed', e);
+          }
+          try {
+            const pz = await getCoursePhotozones(courseId);
+            const pzd: any = (pz as any)?.data ?? pz;
+            const list =
+              pzd?.data?.photozones || pzd?.photozones || pzd?.data || [];
+            console.info('[Course_create] getCoursePhotozones', {
+              count: Array.isArray(list) ? list.length : 0,
+              sample: Array.isArray(list) && list.length ? list[0] : null,
+            });
+          } catch (e) {
+            console.warn('[Course_create] getCoursePhotozones failed', e);
+          }
+        }
+      } catch {}
+
       navigate('/walk_record_after_walk');
     } catch (e: any) {
       console.error('코스 생성 실패:', e);
       console.error('에러 상세:', e.response?.data || e.message);
-      alert(`코스 생성에 실패했습니다: ${e.response?.data?.message || e.message || '알 수 없는 오류'}`);
+      alert(
+        `코스 생성에 실패했습니다: ${e.response?.data?.message || e.message || '알 수 없는 오류'}`
+      );
     }
   };
 

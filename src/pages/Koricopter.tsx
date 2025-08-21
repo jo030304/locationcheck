@@ -5,7 +5,7 @@ import CustomSlider from '../hooks/CustomSlider';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import { tailcopterScoreState, walkRecordIdState } from '../hooks/walkAtoms';
 import { saveTailcopterScore } from '../services/walks';
-import { HiMiniHeart } from "react-icons/hi2";
+import { HiMiniHeart } from 'react-icons/hi2';
 
 /* ----------------------------- ScoreFX (정적 하트/물방울) ----------------------------- */
 type Tier = 'low' | 'mid' | 'high';
@@ -74,7 +74,13 @@ function HeartWithShine({
 }
 
 /** 투명 배경 + 내부 하이라이트만(클립) */
-function Drop({ style, color = '#6ECBFF' }: { style: CSSProperties; color?: string }) {
+function Drop({
+  style,
+  color = '#6ECBFF',
+}: {
+  style: CSSProperties;
+  color?: string;
+}) {
   const rawId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const shineId = `dropShine-${rawId}`;
   const innerId = `dropInner-${rawId}`;
@@ -83,7 +89,11 @@ function Drop({ style, color = '#6ECBFF' }: { style: CSSProperties; color?: stri
 
   // width/height/scale 추출
   const toNum = (v: unknown) =>
-    typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : undefined;
+    typeof v === 'number'
+      ? v
+      : typeof v === 'string'
+        ? parseFloat(v)
+        : undefined;
 
   const w = toNum(style?.width);
   const h = toNum(style?.height);
@@ -102,8 +112,11 @@ function Drop({ style, color = '#6ECBFF' }: { style: CSSProperties; color?: stri
   const MIN_OP = 0.55;
   const MAX_OP = 1.0;
 
-  const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
-  const t = (clamp(effectiveSize, MIN_SIZE, MAX_SIZE) - MIN_SIZE) / (MAX_SIZE - MIN_SIZE);
+  const clamp = (x: number, a: number, b: number) =>
+    Math.max(a, Math.min(b, x));
+  const t =
+    (clamp(effectiveSize, MIN_SIZE, MAX_SIZE) - MIN_SIZE) /
+    (MAX_SIZE - MIN_SIZE);
   const fillOpacity = MIN_OP + t * (MAX_OP - MIN_OP);
 
   const d =
@@ -135,10 +148,19 @@ function Drop({ style, color = '#6ECBFF' }: { style: CSSProperties; color?: stri
       </defs>
 
       {/* 바탕색(크기에 따라 진해짐) */}
-      <use href={`#${pathId}`} xlinkHref={`#${pathId}`} fill={color} fillOpacity={fillOpacity} />
+      <use
+        href={`#${pathId}`}
+        xlinkHref={`#${pathId}`}
+        fill={color}
+        fillOpacity={fillOpacity}
+      />
 
       {/* 내부 하이라이트(만화풍) */}
-      <use href={`#${pathId}`} xlinkHref={`#${pathId}`} fill={`url(#${shineId})`} />
+      <use
+        href={`#${pathId}`}
+        xlinkHref={`#${pathId}`}
+        fill={`url(#${shineId})`}
+      />
 
       {/* 내부 글로우 (클립으로 path 내부에만 표시 → 배경 완전 투명) */}
       <g clipPath={`url(#${clipId})`}>
@@ -331,13 +353,17 @@ const Koricopter = () => {
   const [hideIntroText, setHideIntroText] = useState(false);
 
   // 간단한 잔상: 최신 각도 히스토리
-  const [angleHistory, setAngleHistory] = useState<number[]>(Array(LAYERS).fill(0));
+  const [angleHistory, setAngleHistory] = useState<number[]>(
+    Array(LAYERS).fill(0)
+  );
 
   const score = Math.min(Math.round((count / 15) * 100), 100);
   const message =
-    score <= 33 ? '다소 아쉬운 산책이었어요.' :
-      score <= 66 ? '다음엔 더 신나게 놀아봐요!' :
-        '아주 완벽했던 산책이었어요!';
+    score <= 33
+      ? '다소 아쉬운 산책이었어요.'
+      : score <= 66
+        ? '다음엔 더 신나게 놀아봐요!'
+        : '아주 완벽했던 산책이었어요!';
 
   const tier: Tier = score <= 33 ? 'low' : score <= 66 ? 'mid' : 'high';
 
@@ -364,7 +390,7 @@ const Koricopter = () => {
     if (!showMessage) return;
     setScoreState(score);
     if (walkRecordId) {
-      saveTailcopterScore(walkRecordId, score).catch(() => { });
+      saveTailcopterScore(walkRecordId, score).catch(() => {});
     }
     const navTimer = setTimeout(() => {
       if (result === 'yes') navigate('/course_create_detail');
@@ -377,29 +403,39 @@ const Koricopter = () => {
   const t = (sliderValue - 50) / 50; // -1..1
   const targetAngle = t * 24;
   useEffect(() => {
-    setAngleHistory(prev => [targetAngle, ...prev].slice(0, LAYERS));
+    setAngleHistory((prev) => [targetAngle, ...prev].slice(0, LAYERS));
   }, [targetAngle]);
 
   const handleSliderChange = (val: number) => {
     setSliderValue(val);
-    if (!hasInteracted) { setHasInteracted(true); setHideIntroText(true); }
+    if (!hasInteracted) {
+      setHasInteracted(true);
+      setHideIntroText(true);
+    }
     if (showMessage) return;
     if (val <= 5) setLeftReached(true);
     if (val >= 95) setRightReached(true);
     if (leftReached && rightReached) {
-      setCount(p => p + 1);
-      setLeftReached(false); setRightReached(false);
+      setCount((p) => p + 1);
+      setLeftReached(false);
+      setRightReached(false);
     }
   };
-  
+
   // ✅ Koricopter 컴포넌트 내부, state들 선언 근처에 추가
   const msgTimerRef = useRef<number | null>(null);
 
   return (
     <div className="relative min-h-[100svh] overflow-hidden">
       {/* 바닥 그라데이션 */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[25vh] z-0 bg-gradient-to-b from-transparent via-[#E7F8E7] to-[#D7F1D7]" />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[260px] z-0 bg-[radial-gradient(80%_120%_at_50%_100%,rgba(79,166,91,0.22),rgba(79,166,91,0.10)_35%,rgba(79,166,91,0)_70%)]" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[25vh] z-0 bg-gradient-to-b from-transparent via-[#E7F8E7] to-[#D7F1D7]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[260px] z-0 bg-[radial-gradient(80%_120%_at_50%_100%,rgba(79,166,91,0.22),rgba(79,166,91,0.10)_35%,rgba(79,166,91,0)_70%)]"
+      />
 
       {/* 점수별 이펙트 (메시지 뜰 때만, 정적) */}
       <ScoreFX active={showMessage} tier={tier} />
@@ -414,11 +450,14 @@ const Koricopter = () => {
       )}
 
       {/* 꼬리 모션 스택 — 정중앙 */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] flex justify-center">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-[-50px] z-[5] flex justify-center"
+      >
         <div className="relative w-[180px] sm:w-[200px]">
           {angleHistory.map((ang, i) => {
             const influence = 1 - i * 0.18;
-            const scale = 1 - i * 0.04;
+            const scale = 1.5;
             const opacity = i === 0 ? 1 : Math.max(0.12, 0.32 - i * 0.07);
             const blurPx = i === 0 ? 0 : 1.2 + i * 0.6;
             return (
@@ -473,10 +512,8 @@ const Koricopter = () => {
               </div>
             )}
           </>
-        ) : (
-          // 🔇 오버레이로 점수를 띄우므로 여기서는 렌더링하지 않음
-          null
-        )}
+        ) : // 🔇 오버레이로 점수를 띄우므로 여기서는 렌더링하지 않음
+        null}
         <div className="w-full flex justify-center">
           <div className="w-1/2">
             <div className="w-full">

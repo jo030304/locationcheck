@@ -46,6 +46,9 @@ interface KakaoMapProps {
   /** 회색으로 미리 칠할 전체 코스 좌표( [lat, lng] 배열 ) */
   basePath?: Array<[number, number]>;
   basePathOptions?: BasePathOptions;
+
+  /** 실시간 이동 경로 폴리라인(초록) 그리기 여부 (기본값: true) */
+  drawRealtimePolyline?: boolean;
 }
 
 const KakaoMap = forwardRef(function KakaoMap(
@@ -64,6 +67,7 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     basePath,
     basePathOptions,
+    drawRealtimePolyline = true,
   }: KakaoMapProps,
   ref
 ) {
@@ -568,16 +572,17 @@ const KakaoMap = forwardRef(function KakaoMap(
         onDistanceChange?.(totalDistanceRef.current);
         coordinatesRef.current.push({ lat, lng });
         onPathUpdate?.({ lat, lng });
-
-        const poly = new window.kakao.maps.Polyline({
-          path: [prevPos, newPos],
-          strokeWeight: 7,
-          strokeColor: '#4FA65B',
-          strokeOpacity: 0.9,
-          strokeStyle: 'solid',
-          zIndex: 4,
-        });
-        poly.setMap(mapRef.current);
+        if (drawRealtimePolyline) {
+          const poly = new window.kakao.maps.Polyline({
+            path: [prevPos, newPos],
+            strokeWeight: 7,
+            strokeColor: '#4FA65B',
+            strokeOpacity: 0.9,
+            strokeStyle: 'solid',
+            zIndex: 4,
+          });
+          poly.setMap(mapRef.current);
+        }
         prevPosRef.current = { lat, lng };
       }
     } else if (!prev && drawingActive) {
@@ -633,14 +638,16 @@ const KakaoMap = forwardRef(function KakaoMap(
           onDistanceChange?.(totalDistanceRef.current);
           coordinatesRef.current.push({ lat, lng });
           onPathUpdate?.({ lat, lng });
-          const poly = new window.kakao.maps.Polyline({
-            path: [prevPos, newPos],
-            strokeWeight: 5,
-            strokeColor: '#4FA65B',
-            strokeOpacity: 1,
-            strokeStyle: 'solid',
-          });
-          poly.setMap(mapRef.current);
+          if (drawRealtimePolyline) {
+            const poly = new window.kakao.maps.Polyline({
+              path: [prevPos, newPos],
+              strokeWeight: 5,
+              strokeColor: '#4FA65B',
+              strokeOpacity: 1,
+              strokeStyle: 'solid',
+            });
+            poly.setMap(mapRef.current);
+          }
         }
       }
       prevPosRef.current = { lat, lng };

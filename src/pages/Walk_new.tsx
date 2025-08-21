@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import KakaoMap from './KakaoMap';
 import Record from './Record';
 import Operator from './Operator';
-import StopButton from './StopButton';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import {
   walkDistanceMetersState,
@@ -12,21 +11,13 @@ import {
   walkPathCoordinatesState,
   currentLocationState,
 } from '../hooks/walkAtoms';
-import {
-  endWalk,
-  saveTailcopterScore,
-  updateWalkTrack,
-} from '../services/walks';
+import { updateWalkTrack } from '../services/walks';
 import { createPresignedUrl, uploadToS3 } from '../services/upload';
-import { useNavigate } from 'react-router-dom';
 import { createMarkingPhoto } from '../services/marking';
 
 const Walk_new = () => {
-  const navigate = useNavigate();
   const [markRequested, setMarkRequested] = useState(false);
   const [distance, setDistance] = useRecoilState(walkDistanceMetersState);
-  const [buttonsDisabled, setButtonsDisabled] = useState(false);
-  const [showStopModal, setShowStopModal] = useState(false);
 
   // testMode는 유지하되, 버튼은 testMode와 관계없이 항상 동작/표시
   const [testMode, setTestMode] = useState(false);
@@ -40,7 +31,7 @@ const Walk_new = () => {
   const pathRef = useRef<number[][]>([]);
   const mapRef = useRef<any>(null);
   const cheatActivatedRef = useRef(false);
-  const [markingCount, setMarkingCount] = useRecoilState(walkMarkingCountState);
+  const [, setMarkingCount] = useRecoilState(walkMarkingCountState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setPathCoordinates] = useRecoilState(walkPathCoordinatesState);
   const currentLocation = useRecoilValue(currentLocationState);
@@ -224,6 +215,13 @@ const Walk_new = () => {
                 longitude: lng,
                 photoUrl: fileUrl,
               });
+              console.info('[Walk_new] marking created', {
+                walkRecordId,
+                lat,
+                lng,
+                fileUrl,
+                resp: savedRes,
+              });
               setMarkingCount((c) => c + 1);
 
               // ✅ 방금 찍은 사진을 포토존 페이지에 넘김 (미리보기 URL도 함께)
@@ -249,31 +247,9 @@ const Walk_new = () => {
                 JSON.stringify(payload)
               ); // 새로고침 대비
 
-              // ✅ 로컬 히스토리 저장 (중복 방지)
-              try {
-                const KEY = 'marking_photos';
-                const item = {
-                  fileUrl,
-                  lat,
-                  lng,
-                  ts: payload.ts,
-                  markingPhotoId,
-                };
-                const prev: any[] = JSON.parse(
-                  localStorage.getItem(KEY) || '[]'
-                );
-                const exists = prev.some(
-                  (p) =>
-                    (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
-                    (!markingPhotoId &&
-                      p.fileUrl === fileUrl &&
-                      p.ts === payload.ts)
-                );
-                const next = exists ? prev : [item, ...prev].slice(0, 200);
-                localStorage.setItem(KEY, JSON.stringify(next));
-              } catch {}
+              // 로컬스토리지에 마킹/포토존 정보를 쓰지 않음
 
-              navigate('/marking_photozone', { state: payload });
+              // 업로드 성공 후에는 산책 흐름 유지: 라우팅하지 않음
             }
           } catch (err) {
             console.error('마킹 업로드 실패:', err);

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { MdWaterDrop } from 'react-icons/md';
+import { renderToString } from 'react-dom/server';
 import { useLocation, useNavigate } from 'react-router-dom';
 import KakaoMap from './KakaoMap';
 import Operator from './Operator';
@@ -15,7 +17,7 @@ import {
 import { endWalk, updateWalkTrack } from '../services/walks';
 import { createPresignedUrl, uploadToS3 } from '../services/upload';
 import { createMarkingPhoto } from '../services/marking';
-import { getCourseDetails } from '../services/courses';
+import { getCourseDetails, getCoursePhotozones } from '../services/courses';
 import CourseRecord from './CourseRecord';
 
 const RECORD_AFTER_PATH = '/walk_record_after_walk';
@@ -26,10 +28,11 @@ const Walk_existing = () => {
 
   // ---- 거리/경로/식별자 Recoil ----
   const [distance, setDistance] = useRecoilState(walkDistanceMetersState);
-  const [walkRecordId, setWalkRecordId] = useRecoilState(walkRecordIdState);
+  const [walkRecordId] = useRecoilState(walkRecordIdState);
   const [startedAt, setStartedAt] = useRecoilState(walkStartedAtState);
   const [, setMarkingCount] = useRecoilState(walkMarkingCountState);
   const [, setPathCoordinates] = useRecoilState(walkPathCoordinatesState);
+  const pathCoordinatesValue = useRecoilValue(walkPathCoordinatesState);
   const setMapCaptureImage = useSetRecoilState(mapCaptureImageState);
 
   // ---- 기타 상태 ----
@@ -63,6 +66,8 @@ const Walk_existing = () => {
 
   // ---- 코스 정보 ----
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [coursePhotozones, setCoursePhotozones] = useState<any[]>([]);
+  const pinOverlaysRef = useRef<any[]>([]);
 
   const incomingCourse =
     location?.state?.course ?? location?.state?.selectedCourse ?? null;
@@ -105,7 +110,59 @@ const Walk_existing = () => {
         if (idToFetch && active) {
           const res = await getCourseDetails(idToFetch);
           const data = (res as any)?.data ?? res;
-          setSelectedCourse(data?.data ?? data ?? null);
+          const coursePayload = data?.data ?? data ?? null;
+          setSelectedCourse(coursePayload);
+          console.info('[Walk_existing] course details loaded', {
+            courseId: idToFetch,
+            keys: Object.keys((data?.data ?? data) || {}),
+            sample:
+              (data?.data ?? data)?.pathCoordinates ||
+              (data?.data ?? data)?.path ||
+              (data?.data ?? data)?.geometry,
+          });
+          // 코스 상세 내 포함된 포토존 우선 적용
+          const pzRaw = coursePayload?.markingPhotozones;
+          console.info('[Walk_existing] markingPhotozones raw', {
+            type: typeof pzRaw,
+            isArray: Array.isArray(pzRaw),
+            keys:
+              pzRaw && !Array.isArray(pzRaw) && typeof pzRaw === 'object'
+                ? Object.keys(pzRaw)
+                : undefined,
+          });
+          let pzInDetails: any[] | null = null;
+          if (Array.isArray(pzRaw)) pzInDetails = pzRaw;
+          else if (pzRaw && typeof pzRaw === 'object') {
+            pzInDetails = (pzRaw.photozones ||
+              pzRaw.items ||
+              pzRaw.data ||
+              pzRaw.results ||
+              null) as any[] | null;
+          }
+          if (Array.isArray(pzInDetails) && pzInDetails.length > 0) {
+            setCoursePhotozones(pzInDetails);
+            console.info('[Walk_existing] photozones from details', {
+              count: pzInDetails.length,
+              sample: pzInDetails[0],
+            });
+          }
+          // 코스 포토존도 병렬로 불러오기
+          try {
+            const pzRes = await getCoursePhotozones(idToFetch);
+            const pzData = (pzRes as any)?.data ?? pzRes;
+            const list =
+              pzData?.data?.photozones ||
+              pzData?.photozones ||
+              pzData?.data ||
+              [];
+            if (active && Array.isArray(list) && list.length > 0) {
+              setCoursePhotozones(list);
+            }
+            console.info('[Walk_existing] photozones loaded', {
+              count: Array.isArray(list) ? list.length : 0,
+              sample: Array.isArray(list) && list.length ? list[0] : null,
+            });
+          } catch {}
         }
       } catch (e) {
         console.error('Failed to fetch course details:', e);
@@ -121,16 +178,134 @@ const Walk_existing = () => {
 
   // --- 새 산책 진입/변경 시 0부터 시작하도록 초기화 ---
   useEffect(() => {
+    // 이미 세션에 경로가 남아있거나, 임시 플래그가 있으면 초기화 스킵
+    const suspend = (() => {
+      try {
+        const v = sessionStorage.getItem('suspend_walk_reset');
+        if (v === '1') sessionStorage.removeItem('suspend_walk_reset');
+        return v === '1';
+      } catch {
+        return false;
+      }
+    })();
+
+    if (pathCoordinatesValue.length > 0 || suspend) {
+      if (!startedAt) setStartedAt(Date.now());
+      return;
+    }
+
     setDistance(0);
     setPathCoordinates([]);
     setMarkingCount(0);
     pathRef.current = [];
     firstTrackRef.current = null;
-    // 자동완료 플래그도 리셋
     finishShownRef.current = false;
     if (!startedAt) setStartedAt(Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walkRecordId]);
+
+  // 코스 포토존 핀 렌더링
+  useEffect(() => {
+    const map = mapRef.current?.getMap?.();
+    if (!map || !window.kakao || !Array.isArray(coursePhotozones))
+      return () => {};
+
+    // 기존 핀 제거
+    pinOverlaysRef.current.forEach((ov) => ov?.setMap?.(null));
+    pinOverlaysRef.current = [];
+
+    console.info('[Walk_existing] rendering pins', {
+      count: coursePhotozones.length,
+    });
+
+    coursePhotozones.forEach((pz: any) => {
+      const lat = Number(pz.latitude ?? pz.lat ?? pz.y ?? pz[1]);
+      const lng = Number(pz.longitude ?? pz.lng ?? pz.x ?? pz[0]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      console.debug('[Walk_existing] pin', {
+        lat,
+        lng,
+        id: pz.photozone_id || pz.id,
+      });
+      // KakaoMap.tsx의 마킹 마커 UI와 동일한 구조/스타일 재사용
+      const iconHTML = renderToString(
+        <MdWaterDrop
+          style={{ width: '20px', height: '20px', color: '#4FA65B' }}
+        />
+      );
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `
+        <div style="
+          background-color: #FFD86A;
+          border-radius: 12px;
+          padding: 4px;
+          position: relative;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        ">
+          ${iconHTML}
+          <div style="
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid #FFD86A;
+          "></div>
+        </div>
+      `;
+      const markerEl = wrapper.firstElementChild as HTMLElement;
+      markerEl.title = '포토존 보기';
+      markerEl.onclick = () => {
+        try {
+          sessionStorage.setItem('suspend_walk_reset', '1');
+        } catch {}
+        const courseIdForNav =
+          incomingCourseId ||
+          ssCourseId ||
+          selectedCourse?.id ||
+          selectedCourse?.course_id ||
+          null;
+        const photozoneId =
+          pz.photozone_id || pz.id || String(lat) + ',' + String(lng);
+        console.info('[Walk_existing] pin clicked → navigate', {
+          courseIdForNav,
+          photozoneId,
+        });
+        navigate('/marking_photozone', {
+          state: { courseId: courseIdForNav, photozoneId },
+        });
+      };
+
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: new window.kakao.maps.LatLng(lat, lng),
+        content: markerEl,
+        yAnchor: 1,
+        zIndex: 6,
+      });
+      overlay.setMap(map);
+      pinOverlaysRef.current.push(overlay);
+    });
+
+    return () => {
+      pinOverlaysRef.current.forEach((ov) => ov?.setMap?.(null));
+      pinOverlaysRef.current = [];
+    };
+  }, [
+    coursePhotozones,
+    navigate,
+    incomingCourseId,
+    ssCourseId,
+    selectedCourse,
+  ]);
 
   // 상단 배너 카피
   const courseName = useMemo(() => {
@@ -379,6 +554,8 @@ const Walk_existing = () => {
         // ✅ 전체 코스(회색) 프리셋 경로 + 옵션
         basePath={basePath}
         basePathOptions={basePathOptions}
+        // ✅ 기존 코스 경로는 회색 유지, 실시간 초록은 따로: 필요 시 켬/끔 가능
+        drawRealtimePolyline={true}
       >
         {(courseName || totalDistanceMeters > 0) && (
           <CourseRecord
@@ -482,6 +659,13 @@ const Walk_existing = () => {
                 longitude: lng,
                 photoUrl: fileUrl,
               });
+              console.info('[Walk_existing] marking created', {
+                walkRecordId,
+                lat,
+                lng,
+                fileUrl,
+                resp: savedRes,
+              });
               setMarkingCount((c) => c + 1);
 
               const previewUrl = URL.createObjectURL(file);
@@ -505,30 +689,87 @@ const Walk_existing = () => {
                 JSON.stringify(payload)
               );
 
-              try {
-                const KEY = 'marking_photos';
-                const item = {
-                  fileUrl,
-                  lat,
-                  lng,
-                  ts: payload.ts,
-                  markingPhotoId,
-                };
-                const prev: any[] = JSON.parse(
-                  localStorage.getItem(KEY) || '[]'
-                );
-                const exists = prev.some(
-                  (p) =>
-                    (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
-                    (!markingPhotoId &&
-                      p.fileUrl === fileUrl &&
-                      p.ts === payload.ts)
-                );
-                const next = exists ? prev : [item, ...prev].slice(0, 200);
-                localStorage.setItem(KEY, JSON.stringify(next));
-              } catch {}
+              // 업로드 성공 후에는 라우팅하지 않음. 산책 흐름 유지
+              // 로컬스토리지에 마킹/포토존 정보를 쓰지 않음
 
-              navigate('/marking_photozone', { state: payload });
+              // ✅ 핀 즉시 반영: 서버 재조회 후, 실패 시 로컬 추가(fallback)
+              try {
+                const courseIdForNav =
+                  incomingCourseId ||
+                  ssCourseId ||
+                  (selectedCourse as any)?.id ||
+                  (selectedCourse as any)?.course_id ||
+                  (selectedCourse as any)?.courseId ||
+                  null;
+
+                const photozoneId =
+                  saved?.data?.photozoneId ||
+                  saved?.data?.photozone_id ||
+                  saved?.photozoneId ||
+                  saved?.photozone_id ||
+                  null;
+
+                if (courseIdForNav) {
+                  try {
+                    const pzRes2 = await getCoursePhotozones(courseIdForNav);
+                    const pzData2: any = (pzRes2 as any)?.data ?? pzRes2;
+                    const list2 =
+                      pzData2?.data?.photozones ||
+                      pzData2?.photozones ||
+                      pzData2?.data ||
+                      [];
+                    if (Array.isArray(list2)) {
+                      if (
+                        photozoneId &&
+                        !list2.some(
+                          (p: any) => (p.photozone_id || p.id) === photozoneId
+                        )
+                      ) {
+                        list2.push({
+                          photozone_id: photozoneId,
+                          latitude: lat,
+                          longitude: lng,
+                        });
+                      }
+                      setCoursePhotozones(list2);
+                    }
+                  } catch (e) {
+                    if (photozoneId) {
+                      setCoursePhotozones((prev: any[]) => {
+                        if (
+                          prev.some(
+                            (p) => (p.photozone_id || p.id) === photozoneId
+                          )
+                        )
+                          return prev;
+                        return [
+                          ...prev,
+                          {
+                            photozone_id: photozoneId,
+                            latitude: lat,
+                            longitude: lng,
+                          },
+                        ];
+                      });
+                    }
+                  }
+                } else if (photozoneId) {
+                  setCoursePhotozones((prev: any[]) => {
+                    if (
+                      prev.some((p) => (p.photozone_id || p.id) === photozoneId)
+                    )
+                      return prev;
+                    return [
+                      ...prev,
+                      {
+                        photozone_id: photozoneId,
+                        latitude: lat,
+                        longitude: lng,
+                      },
+                    ];
+                  });
+                }
+              } catch {}
             }
           } catch (err) {
             console.error('마킹 업로드 실패:', err);

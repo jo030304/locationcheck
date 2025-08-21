@@ -1,6 +1,7 @@
 // MarkingPhotozone.tsx
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
+import { getPhotozoneDetails } from '../services/marking';
 import { FaChevronLeft } from 'react-icons/fa';
 import { useRecoilValue } from 'recoil';
 import { nameState, breedState, birthState } from '../hooks/animalInfoAtoms';
@@ -8,8 +9,8 @@ import { getMyProfile } from '../services/users';
 import Avatar from '../hooks/Avatar';
 
 type PhotoState = {
-  fileUrl?: string;      // 영구 저장용(DataURL)
-  previewUrl?: string;   // 즉시 표시용(ObjectURL, 세션동안만)
+  fileUrl?: string; // 영구 저장용(DataURL)
+  previewUrl?: string; // 즉시 표시용(ObjectURL, 세션동안만)
   lat?: number;
   lng?: number;
   ts?: number | string;
@@ -47,19 +48,21 @@ const ageLabelFromBirth = (birth?: string | null): string => {
   }
   const now = new Date();
   const b = new Date(y, (m || 1) - 1, d || 1);
-  let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  let months =
+    (now.getFullYear() - b.getFullYear()) * 12 +
+    (now.getMonth() - b.getMonth());
   if (now.getDate() < b.getDate()) months -= 1;
   if (months < 0) return '';
   if (months < 12) return `${months}개월`;
   return `${Math.floor(months / 12)}살`;
 };
 
-const LS_KEY = 'marking_photos';
 const SS_KEY = 'last_marking_photo';
-const MAX_HISTORY = 200;
 
 const MarkingPhotozone = () => {
-  const { state } = useLocation() as { state?: PhotoState };
+  const { state } = useLocation() as {
+    state?: PhotoState & { courseId?: string | number; photozoneId?: string };
+  };
 
   // Recoil에서 기본 메타
   const recoilName = useRecoilValue(nameState);
@@ -74,6 +77,8 @@ const MarkingPhotozone = () => {
 
   const [latest, setLatest] = useState<PhotoState | null>(null);
   const [history, setHistory] = useState<PhotoState[]>([]);
+  const [coursePhotos, setCoursePhotos] = useState<PhotoState[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // ---------- 카메라/파일 입력 ----------
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -105,20 +110,18 @@ const MarkingPhotozone = () => {
     });
 
   const persistToLocal = (item: PhotoState) => {
-    try {
-      const arr: PhotoState[] = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
-      const next = Array.isArray(arr) ? arr : [];
-      // 중복 방지 키: fileUrl + ts
+    // 로컬스토리지에 포토존/마킹 정보를 저장하지 않습니다. 메모리 상태로만 유지합니다.
+    setHistory((prev) => {
       const key = `${item.fileUrl}|${item.ts ?? ''}`;
-      const seen = new Set(next.map((x) => `${x.fileUrl}|${x.ts ?? ''}`));
-      if (!seen.has(key)) next.unshift(item);
-      // 히스토리 제한
-      if (next.length > MAX_HISTORY) next.length = MAX_HISTORY;
-      localStorage.setItem(LS_KEY, JSON.stringify(next));
-      setHistory(next);
-    } catch (e) {
-      console.error('[MarkingPhotozone] localStorage write failed:', e);
-    }
+      const seen = new Set(
+        (prev || []).map((x) => `${x.fileUrl}|${x.ts ?? ''}`)
+      );
+      if (seen.has(key)) return prev;
+      const next = [item, ...(prev || [])];
+      // 필요 시 메모리상 제한 (200개)
+      if (next.length > 200) next.length = 200;
+      return next;
+    });
   };
 
   const handleFileChange = useCallback(
@@ -127,7 +130,10 @@ const MarkingPhotozone = () => {
       if (!f) return;
 
       const ts = Date.now();
-      const [dataUrl, pos] = await Promise.all([readAsDataURL(f), getCurrentPosition()]);
+      const [dataUrl, pos] = await Promise.all([
+        readAsDataURL(f),
+        getCurrentPosition(),
+      ]);
 
       // 영구 저장본(fileUrl=DataURL) + 즉시 표시용(previewUrl=ObjectURL)
       const newItem: PhotoState = {
@@ -157,7 +163,8 @@ const MarkingPhotozone = () => {
 
   // ---------- 최신(방금 찍은) 사진 복구 ----------
   useEffect(() => {
-    const fromState = state && (state.previewUrl || state.fileUrl) ? state : null;
+    const fromState =
+      state && (state.previewUrl || state.fileUrl) ? state : null;
     if (fromState) {
       setLatest(fromState);
       sessionStorage.setItem(SS_KEY, JSON.stringify(fromState));
@@ -182,6 +189,37 @@ const MarkingPhotozone = () => {
           /* noop */
         }
       }
+    };
+  }, [state]);
+
+  // ---------- 코스 포토존 집계 사진 조회 (핀 클릭 진입 시) ----------
+  useEffect(() => {
+    const photozoneId = (state as any)?.photozoneId;
+    if (!photozoneId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await getPhotozoneDetails(String(photozoneId));
+        const data: any = (res as any)?.data ?? res;
+        const d = data?.data ?? data;
+        const photos = Array.isArray(d?.photos) ? d.photos : [];
+        const mapped: PhotoState[] = photos
+          .map((p: any) => ({
+            fileUrl: p?.photo_url || p?.url,
+            ts: p?.created_at,
+            markingPhotoId: p?.photo_id || p?.id,
+          }))
+          .filter((x) => x.fileUrl);
+        if (!cancelled) setCoursePhotos(mapped);
+      } catch {
+        if (!cancelled) setCoursePhotos([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, [state]);
 
@@ -212,14 +250,9 @@ const MarkingPhotozone = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recoilName, recoilBreed, recoilBirth]);
 
-  // ---------- 로컬 히스토리 로딩 ----------
+  // ---------- 로컬 히스토리 로딩 제거 (메모리 상태로만 유지) ----------
   useEffect(() => {
-    try {
-      const arr: PhotoState[] = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
-      setHistory(Array.isArray(arr) ? arr : []);
-    } catch {
-      setHistory([]);
-    }
+    setHistory([]);
   }, []);
 
   // ---------- 최신 + 히스토리 병합(중복 제거) ----------
@@ -254,12 +287,16 @@ const MarkingPhotozone = () => {
       <div className="sticky top-0 bg-[#FEFFFA] z-10 mb-3">
         <div className="relative h-12 flex items-center justify-center px-4">
           <button
-            onClick={() => history.length > 0 ? window.history.back() : window.history.go(-1)}
+            onClick={() =>
+              history.length > 0 ? window.history.back() : window.history.go(-1)
+            }
             className="absolute left-4 p-2 -ml-2 text-gray-600 cursor-pointer"
           >
             <FaChevronLeft />
           </button>
-          <h1 className="text-[15px] font-semibold text-gray-800">마킹 포토존</h1>
+          <h1 className="text-[15px] font-semibold text-gray-800">
+            마킹 포토존
+          </h1>
         </div>
       </div>
 
@@ -267,20 +304,29 @@ const MarkingPhotozone = () => {
       <main className="mx-auto w-full max-w-[420px] px-4 pb-24">
         {/* 안내 배너 */}
         <div className="flex justify-center items-center bg-[#E0F2D9] text-[#498952] font-medium text-[12px] px-4 py-3 rounded-xl mb-4 leading-relaxed">
-          2시간 전에 코코가 다녀갔어요.<br />꼬미의 흔적도 남겨볼까요?
+          2시간 전에 코코가 다녀갔어요.
+          <br />
+          꼬미의 흔적도 남겨볼까요?
         </div>
 
         {/* 리스트 */}
-        {items.length === 0 ? (
+        {loading ? (
+          <p className="mt-10 text-center text-sm text-gray-500">
+            불러오는 중…
+          </p>
+        ) : items.length === 0 && coursePhotos.length === 0 ? (
           <p className="mt-10 text-center text-sm text-gray-500">
             아직 표시할 사진이 없어요.
           </p>
         ) : (
           <section className="divide-y divide-gray-200">
-            {items.map((p, idx) => {
+            {[...coursePhotos, ...items].map((p, idx) => {
               const src = p.previewUrl || p.fileUrl || '';
               return (
-                <article key={p.markingPhotoId || `${p.fileUrl}-${p.ts}-${idx}`} className="py-4">
+                <article
+                  key={p.markingPhotoId || `${p.fileUrl}-${p.ts}-${idx}`}
+                  className="py-4"
+                >
                   {/* 상단 메타 행 */}
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
@@ -302,7 +348,11 @@ const MarkingPhotozone = () => {
 
                   {/* 사진 카드 */}
                   <div className="mt-2 mb-2 rounded-2xl overflow-hidden border border-[#E5E7EB] w-[100%] h-[30vh] mx-auto">
-                    <img src={src} alt="마킹 사진" className="w-full h-full object-cover" />
+                    <img
+                      src={src}
+                      alt="마킹 사진"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </article>
               );
