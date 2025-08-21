@@ -21,7 +21,7 @@ import { getCourseDetails, getCoursePhotozones } from '../services/courses';
 import CourseRecord from './CourseRecord';
 import MarkingPhotozone from './MarkingPhotozone';
 
-const RECORD_AFTER_PATH = '/walk_record_after_walk';
+// const RECORD_AFTER_PATH = '/walk_record_after_walk'; // 사용하지 않음: 종료는 항상 꼬리콥터로 이동
 
 const Walk_existing = () => {
   const navigate = useNavigate();
@@ -350,14 +350,8 @@ const Walk_existing = () => {
     );
   }, [selectedCourse]);
 
-  // ✅ 최소 진행거리: 전체 거리의 50%
-  const MIN_PROGRESS_METERS = useMemo(
-    () =>
-      totalDistanceMeters > 0
-        ? totalDistanceMeters * 0.5
-        : Number.POSITIVE_INFINITY,
-    [totalDistanceMeters]
-  );
+  // ✅ 종료 기준 단순화: 항상 종료 가능
+  const MIN_PROGRESS_METERS = 0;
 
   // ✅ 전체 코스 경로(회색) 프리셋
   const basePath = useMemo(
@@ -459,13 +453,6 @@ const Walk_existing = () => {
 
   // ---- (끝점 자동) 산책 종료 ----
   const handleEndWalk = async () => {
-    // ✅ 최소 진행거리 미만이면 자동 종료 방지
-    if (distance < MIN_PROGRESS_METERS) {
-      finishShownRef.current = false;
-      setShowFinishModal(false);
-      return;
-    }
-
     // 0) 모달/백드롭 먼저 숨김
     setShowFinishModal(false);
     // DOM 반영 대기
@@ -500,8 +487,8 @@ const Walk_existing = () => {
       })();
     }
 
-    // 3) 즉시 이동
-    navigate('/koricopter?result=yes');
+    // 3) 즉시 이동 (기존 코스 산책도 항상 꼬리콥터 평가 후 일지로 이동)
+    navigate('/koricopter?result=no');
   };
 
   // ✅ 끝점 20m 이내 + 최소 진행거리(50%) 충족 시 모달
@@ -548,7 +535,24 @@ const Walk_existing = () => {
       console.warn('Map capture on end (record_after) failed:', capErr);
     }
 
-    navigate(RECORD_AFTER_PATH);
+    // ✅ 종료하기를 눌러도 항상 산책 종료 API 호출
+    try {
+      if (walkRecordId) {
+        const durationSec = startedAt
+          ? Math.floor((Date.now() - startedAt) / 1000)
+          : 0;
+        await endWalk(walkRecordId, {
+          finalDurationSeconds: durationSec,
+          finalDistanceMeters: Math.floor(distance),
+          finalPathCoordinates: pathRef.current,
+        });
+      }
+    } catch (e) {
+      console.warn('endWalk failed on cancel path (proceed anyway):', e);
+    }
+
+    // 종료하기도 먼저 꼬리콥터 평가 화면으로 이동 (평가 후 일지로 이동)
+    navigate('/koricopter?result=no');
   }, [navigate, setMapCaptureImage]);
 
   return (
@@ -632,8 +636,7 @@ const Walk_existing = () => {
             confirmOnPause={true}
             endModal={{
               message: '산책을 종료할까요?',
-              subMessage:
-                '코스를 끝까지 마치지 않으면\n꼬리콥터를 흔들 수 없어요.',
+              subMessage: '지금까지의 경로와 마킹이 저장됩니다.',
               confirmText: '계속하기',
               cancelText: '종료하기',
             }}
@@ -646,8 +649,8 @@ const Walk_existing = () => {
 
       {/* 포토존 모달 (전체화면 오버레이) */}
       {photozoneModal.open && (
-        <div className="fixed inset-0 z-[70] bg-black/40">
-          <div className="absolute inset-0 bg-[#FEFFFA]">
+        <div className="fixed inset-0 z-[70] bg-black/40 overflow-y-auto overscroll-contain">
+          <div className="absolute inset-0 bg-[#FEFFFA] overflow-y-auto">
             <MarkingPhotozone
               courseId={photozoneModal.courseId}
               photozoneId={photozoneModal.photozoneId}

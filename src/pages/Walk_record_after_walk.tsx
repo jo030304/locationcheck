@@ -159,14 +159,14 @@ const Walk_record_after_walk = () => {
         </div>
       </div>
 
-      {/* 지도 이미지 표시 */}
+      {/* 지도 이미지 표시 (원본 비율 유지) */}
       <div className="mt-6">
-        <div className="w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[3/2]">
+        <div className="w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-200">
           {mapCaptureImage ? (
             <img
               src={mapCaptureImage}
               alt="산책 경로"
-              className="w-full h-full object-cover"
+              className="w-full h-auto object-contain"
               onError={(e) => {
                 console.error('이미지 표시 오류');
                 (e.target as HTMLImageElement).style.display = 'none';
@@ -174,7 +174,7 @@ const Walk_record_after_walk = () => {
               draggable={false}
             />
           ) : (
-            <div className="w-full h-full grid place-items-center text-center">
+            <div className="w-full min-h-[30vh] grid place-items-center text-center">
               <div>
                 <span className="text-gray-500 text-sm">
                   지도 이미지가 없습니다

@@ -1,82 +1,50 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { FaChevronLeft } from 'react-icons/fa';
 import { useRecoilValue } from 'recoil';
-import { currentLocationState } from '../hooks/walkAtoms';
 import { nameState } from '../hooks/animalInfoAtoms';
-import { getCourseRecommendations } from '../services/courses';
+import { getMyWalkRecords } from '../services/users';
 
-type Course = {
-  id?: string | number;
-  name?: string;
-  courseName?: string;
-  coverImageUrl?: string;
-  photoUrl?: string;
-  coursePhotoUrl?: string;
-  averageTailcopterScore?: number;
-  tailcopterScore?: number;
-  courseLengthMeters?: number;
-  distanceText?: string;
-  estimatedDurationSeconds?: number;
-  features?: string[];
-  tags?: string[];
-};
-
-const getTailScore = (c: any): number | undefined => {
-  const raw =
-    c?.averageTailcopterScore ??
-    c?.tailcopterScore ??
-    c?.average_tailcopter_score ??
-    c?.tailcopter_score ??
-    c?.tailCopterScore ??
-    c?.score ??
-    c?.meta?.tailcopterScore;
-
-  const n = Number(raw);
-  return Number.isFinite(n) ? Math.round(n) : undefined;
-};
-
-export default function Recommended_course_list() {
+export default function WalkRecordsList() {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { courses?: Course[] } };
-  const currentLocation = useRecoilValue(currentLocationState);
   const dogName = (useRecoilValue(nameState) || '').trim();
 
-  const [items, setItems] = useState<Course[]>(location.state?.courses ?? []);
-  const [loading, setLoading] = useState<boolean>(!location.state?.courses);
+  const [records, setRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (location.state?.courses) return;
-
     let cancelled = false;
     (async () => {
       try {
         setLoading(true);
-        const lat = currentLocation?.lat ?? 37.545354;
-        const lng = currentLocation?.lng ?? 126.952576;
-
-        const res = await getCourseRecommendations({
-          latitude: lat,
-          longitude: lng,
-          radius: 2000,
-          sortBy: 'tailcopterScoreDesc',
+        const res = await getMyWalkRecords({
           page: 1,
-          size: 20,
+          size: 50,
+          sortBy: 'created_at',
         });
         const data: any = res?.data ?? res;
-        const list = data?.data?.courses || data?.data || data?.courses || [];
-        if (!cancelled) setItems(Array.isArray(list) ? list : []);
+        const list =
+          data?.walkRecords || data?.data?.walkRecords || data?.data || [];
+        if (!cancelled) setRecords(Array.isArray(list) ? list : []);
       } catch {
-        if (!cancelled) setItems([]);
+        if (!cancelled) setRecords([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const formatDate = (d?: string) => {
+    if (!d) return '';
+    const date = new Date(d);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}.${m}.${day}`;
+  };
 
   const formatDistance = (m?: number) =>
     typeof m === 'number'
@@ -84,9 +52,6 @@ export default function Recommended_course_list() {
         ? `${(m / 1000).toFixed(1)}km`
         : `${m}m`
       : '';
-
-  const formatMinutes = (s?: number) =>
-    typeof s === 'number' ? `${Math.round(s / 60)}분` : '';
 
   return (
     <div className="min-h-screen bg-[#FEFFFA] p-5 relative">
@@ -106,88 +71,65 @@ export default function Recommended_course_list() {
       <main className="px-4">
         {loading ? (
           <div className="py-12 text-center text-gray-400 text-sm">
-            추천 코스를 불러오는 중…
+            불러오는 중…
           </div>
-        ) : items.length === 0 ? (
+        ) : records.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">
-            표시할 추천 코스가 없어요
+            아직 산책 기록이 없어요
           </div>
         ) : (
-          <ul className="divide-y divide-neutral-200">
-            {items.map((course, i) => {
-              const title = course.courseName || course.name || `코스 ${i + 1}`;
-              const score = getTailScore(course);
-              const img =
-                course.coverImageUrl ||
-                course.photoUrl ||
-                course.coursePhotoUrl;
-
-              const distance =
-                typeof course.courseLengthMeters === 'number'
-                  ? formatDistance(course.courseLengthMeters)
-                  : course.distanceText || '';
-
-              const duration =
-                typeof course.estimatedDurationSeconds === 'number'
-                  ? formatMinutes(course.estimatedDurationSeconds)
-                  : '';
-
-              const meta = [distance, duration].filter(Boolean).join(' · ');
-              const tagsArr = (course.features || course.tags || []).slice(
-                0,
-                3
-              );
-              const tags = tagsArr.map((t) =>
-                t?.startsWith('#') ? t : `#${t}`
-              );
+          <ul className="space-y-6">
+            {records.map((rec: any, idx: number) => {
+              const title =
+                rec.title ||
+                rec.course_name ||
+                rec.courseName ||
+                `산책 ${idx + 1}`;
+              const image =
+                rec.path_image_url || rec.pathImageUrl || rec.photoUrl || null;
+              const createdAt =
+                rec.end_time ||
+                rec.start_time ||
+                rec.created_at ||
+                rec.createdAt;
+              const distance = rec.distance_meters ?? rec.distanceMeters;
 
               return (
-                <li key={(course.id as any) ?? i}>
-                  {/* ✅ 전체 항목 클릭 불가 */}
-                  <div className="w-full py-4 flex items-center gap-3 cursor-default select-text">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-[15px] font-semibold text-neutral-900 truncate">
-                          {title}
-                        </h3>
-                        {score !== undefined && (
-                          <span className="ml-1 text-[11px] text-neutral-400">
-                            🦴 {score}
-                          </span>
-                        )}
+                <li
+                  key={rec.walk_record_id || rec.id || idx}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    navigate(`/walk_records/${rec.walk_record_id || rec.id}`, {
+                      state: { record: rec },
+                    })
+                  }
+                >
+                  <div className="w-full rounded-2xl overflow-hidden bg-white border border-gray-200 p-3">
+                    {/* 이미지: 원본 비율로 표시 */}
+                    {image ? (
+                      <img
+                        src={image}
+                        alt={title}
+                        className="w-full h-auto object-contain"
+                        draggable={false}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full min-h-[24vh] grid place-items-center text-gray-400">
+                        이미지 없음
                       </div>
+                    )}
 
-                      {meta && (
-                        <p className="mt-1 text-[12px] text-neutral-500 truncate">
-                          {meta}
-                        </p>
-                      )}
-
-                      {tags.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {tags.map((t, idx) => (
-                            <span
-                              key={idx}
-                              className="text-[11px] text-neutral-400"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 오른쪽 썸네일도 클릭 불가 */}
-                    <div className="w-[64px] h-[64px] flex-shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-amber-200 to-amber-100 pointer-events-none select-none">
-                      {img && (
-                        <img
-                          src={img}
-                          alt={title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          draggable={false}
-                        />
-                      )}
+                    {/* 메타 */}
+                    <div className="mt-3">
+                      <h3 className="text-[15px] font-semibold text-neutral-900">
+                        {title}
+                      </h3>
+                      <p className="mt-1 text-[12px] text-neutral-500">
+                        {formatDate(createdAt)}
+                        {distance != null &&
+                          ` · ${formatDistance(Number(distance))}`}
+                      </p>
                     </div>
                   </div>
                 </li>

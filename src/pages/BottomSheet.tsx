@@ -7,7 +7,10 @@ import { getCourseRecommendations } from '../services/courses';
 import { getMyWalkRecords } from '../services/users';
 import StartWalkButton from './StartWalkButton';
 import MyLocationButton from './MyLocationButton';
-import type { KakaoMapHandle } from './KakaoMap';
+// KakaoMap 핸들 타입 간소 선언(실제 export 없음): 필요한 메서드만 명시
+type KakaoMapHandle = {
+  moveToMyLocation?: () => void;
+};
 import Profile from '../hooks/Profile';
 
 type Props = {
@@ -346,7 +349,7 @@ export default function BottomSheet({ mapRef }: Props) {
                           )
                         }
                       >
-                        <div className="relative rounded-lg overflow-hidden bg-gradient-to-br from-blue-100 to-blue-50 w-[40vh] h-[20vh]">
+                        <div className="relative rounded-lg overflow-hidden bg-gradient-to-br from-blue-100 to-blue-50 w-[24vh] h-[32vh]">
                           {record.path_image_url ||
                           record.pathImageUrl ||
                           record.photoUrl ? (
@@ -357,7 +360,7 @@ export default function BottomSheet({ mapRef }: Props) {
                                 record.photoUrl
                               }
                               alt={`산책 ${idx + 1}`}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">

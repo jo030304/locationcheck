@@ -34,7 +34,9 @@ function ConfirmModal({
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
   if (!open) return null;
@@ -93,17 +95,17 @@ function deepFindCourseId(input: any): number | string | null {
     seen.add(cur);
 
     if ((cur as any).course_id != null) return (cur as any).course_id;
-    if ((cur as any).courseId != null)  return (cur as any).courseId;
+    if ((cur as any).courseId != null) return (cur as any).courseId;
 
     if ((cur as any).course && typeof (cur as any).course === 'object') {
       const c = (cur as any).course;
       if (c.course_id != null) return c.course_id;
-      if (c.courseId  != null) return c.courseId;
-      if (c.id        != null) return c.id;
+      if (c.courseId != null) return c.courseId;
+      if (c.id != null) return c.id;
       if (c.data && typeof c.data === 'object') {
         if (c.data.course_id != null) return c.data.course_id;
-        if (c.data.courseId  != null) return c.data.courseId;
-        if (c.data.id        != null) return c.data.id;
+        if (c.data.courseId != null) return c.data.courseId;
+        if (c.data.id != null) return c.data.id;
       }
     }
     for (const k of Object.keys(cur)) {
@@ -114,7 +116,8 @@ function deepFindCourseId(input: any): number | string | null {
   return null;
 }
 
-const toNumIfNumeric = (v: any) => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v);
+const toNumIfNumeric = (v: any) =>
+  typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v;
 
 const formatDate = (dateStr: string) => {
   const d = new Date(dateStr);
@@ -132,21 +135,31 @@ const formatDistance = (meters: number) => {
 };
 
 // 세션 키
-const keyForRecord = (id?: string | number | null) => (id ? `walk_record_course_${id}` : '');
+const keyForRecord = (id?: string | number | null) =>
+  id ? `walk_record_course_${id}` : '';
 
-function cacheCourseId(recordId: string | number | null | undefined, courseId: any) {
+function cacheCourseId(
+  recordId: string | number | null | undefined,
+  courseId: any
+) {
   const key = keyForRecord(recordId);
   if (!key) return;
-  try { sessionStorage.setItem(key, String(courseId)); } catch {}
+  try {
+    sessionStorage.setItem(key, String(courseId));
+  } catch {}
 }
 
-function readCachedCourseId(recordId: string | number | null | undefined): string | number | null {
+function readCachedCourseId(
+  recordId: string | number | null | undefined
+): string | number | null {
   const key = keyForRecord(recordId);
   if (!key) return null;
   try {
     const v = sessionStorage.getItem(key);
     return v == null ? null : toNumIfNumeric(v);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /* --------------------------- WalkRecordDetails --------------------------- */
@@ -177,7 +190,8 @@ export default function WalkRecordDetails() {
           location.state?.course?.course_id ??
           null;
         const cid = cidFromState ?? deepFindCourseId(d);
-        if (cid != null) cacheCourseId(walkRecordId ?? d?.walk_record_id ?? d?.id, cid);
+        if (cid != null)
+          cacheCourseId(walkRecordId ?? d?.walk_record_id ?? d?.id, cid);
         return;
       }
 
@@ -240,7 +254,10 @@ export default function WalkRecordDetails() {
       if (courseId == null) courseId = deepFindCourseId(details);
 
       // 3) 세션 캐시 (이 기록으로 들어온 적 있다면 저장돼 있음)
-      if (courseId == null) courseId = readCachedCourseId(walkRecordId ?? details?.walk_record_id ?? details?.id);
+      if (courseId == null)
+        courseId = readCachedCourseId(
+          walkRecordId ?? details?.walk_record_id ?? details?.id
+        );
 
       // 4) 마지막 안전장치: 이전 화면에서 저장했을 수도 있는 전역 선택 코스
       if (courseId == null) {
@@ -251,7 +268,10 @@ export default function WalkRecordDetails() {
       }
 
       if (courseId == null) {
-        console.warn('[WalkRecordDetails] courseId not found', { details, state: location.state });
+        console.warn('[WalkRecordDetails] courseId not found', {
+          details,
+          state: location.state,
+        });
         alert('이 기록에 연결된 코스 정보를 찾지 못했어요.');
         setConfirmOpen(false);
         return;
@@ -276,11 +296,18 @@ export default function WalkRecordDetails() {
       setWalkStartedAt(Date.now());
 
       // 다음 화면에서도 courseId 필요하면 state + 세션에 남김
-      try { sessionStorage.setItem('selected_course_id', String(courseId)); } catch {}
+      try {
+        sessionStorage.setItem('selected_course_id', String(courseId));
+      } catch {}
 
       setConfirmOpen(false);
       navigate('/walk_countdown?state=existing', {
-        state: { startType: 'existing', from: 'exist', courseId, walkRecordId: newWalkRecordId },
+        state: {
+          startType: 'existing',
+          from: 'exist',
+          courseId,
+          walkRecordId: newWalkRecordId,
+        },
       });
     } catch (e) {
       console.error('startWalk failed', e);
@@ -293,7 +320,9 @@ export default function WalkRecordDetails() {
   if (isLoading || !details) {
     return (
       <div className="w-full h-screen max-w-sm mx-auto bg-[#FEFFFA] rounded-xl shadow-lg px-6 py-8 relative">
-        <div className="w-full h-full grid place-items-center text-gray-400">불러오는 중...</div>
+        <div className="w-full h-full grid place-items-center text-gray-400">
+          불러오는 중...
+        </div>
       </div>
     );
   }
@@ -319,8 +348,8 @@ export default function WalkRecordDetails() {
       <div className="flex items-center gap-2 mt-6 mb-6">
         <Profile scale={1.4} basePadding={2.5} />
         <p className="text-[17px] font-semibold">
-          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>
-          와 함께한 {details.course_name || details.courseName || '코스'}
+          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>와 함께한{' '}
+          {details.course_name || details.courseName || '코스'}
         </p>
       </div>
 
@@ -332,37 +361,42 @@ export default function WalkRecordDetails() {
             {details.distance_meters
               ? formatDistance(details.distance_meters)
               : details.distanceMeters
-              ? formatDistance(details.distanceMeters)
-              : '0m'}
+                ? formatDistance(details.distanceMeters)
+                : '0m'}
           </p>
         </div>
         <div>
           <p className="text-[#616160] mb-2">마킹 횟수</p>
           <p className="font-semibold text-[16px]">
-            {(details.marking_count ?? details.markingCount ?? 0)}회
+            {details.marking_count ?? details.markingCount ?? 0}회
           </p>
         </div>
         <div>
           <p className="text-[#616160] mb-2">꼬리 점수</p>
           <p className="font-semibold text-[16px]">
-            {Math.round(details.tailcopter_score ?? details.tailcopterScore ?? 0)}점
+            {Math.round(
+              details.tailcopter_score ?? details.tailcopterScore ?? 0
+            )}
+            점
           </p>
         </div>
       </div>
 
-      {/* 지도 이미지 표시 */}
+      {/* 지도 이미지 표시 (원본 비율 유지) */}
       <div className="mt-6">
-        <div className="w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[3/2]">
+        <div className="w-full rounded-2xl overflow-hidden bg-gray-100 border border-gray-200">
           {details.path_image_url || details.pathImageUrl ? (
             <img
               src={details.path_image_url || details.pathImageUrl}
               alt="산책 경로"
-              className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              className="w-full h-auto object-contain"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
               draggable={false}
             />
           ) : (
-            <div className="w-full h-full grid place-items-center text-center">
+            <div className="w-full min-h-[30vh] grid place-items-center text-center">
               <div>
                 <div className="text-4xl mb-2">🗺️</div>
                 <div className="text-sm text-gray-500">경로 이미지 없음</div>
