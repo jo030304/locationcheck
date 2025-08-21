@@ -4,6 +4,7 @@ import { useEffect, useState, useId, useRef, type CSSProperties } from 'react';
 import CustomSlider from '../hooks/CustomSlider';
 import { useRecoilState, useRecoilValue } from 'recoil';
 import { tailcopterScoreState, walkRecordIdState } from '../hooks/walkAtoms';
+import { nameState } from '../hooks/animalInfoAtoms';
 import { saveTailcopterScore } from '../services/walks';
 import { HiMiniHeart } from 'react-icons/hi2';
 
@@ -343,6 +344,7 @@ const Koricopter = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const result = new URLSearchParams(location.search).get('result');
+  const name = useRecoilValue(nameState);
 
   const [sliderValue, setSliderValue] = useState(50);
   const [leftReached, setLeftReached] = useState(false);
@@ -489,7 +491,7 @@ const Koricopter = () => {
         ) : (
           !hideIntroText && (
             <p className="text-[15px] sm:text-[20px] md:text-[25px] lg:text-[30px] leading-relaxed text-gray-700">
-              까미와 함께한 산책, 즐거웠나요?
+              {name || '반려견'}와 함께한 산책, 즐거웠나요?
             </p>
           )
         )}

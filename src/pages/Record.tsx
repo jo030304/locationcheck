@@ -1,7 +1,7 @@
 const Record = ({ distance }: { distance: number }) => {
   return (
     <div
-      className="mx-7 border border-gray-300 rounded-4xl p-3 bg-[#4FA65B] text-white
+      className="mx-7 mt-5 border border-gray-300 rounded-4xl p-3 bg-[#4FA65B] text-white
                     text-base sm:text-lg md:text-xl lg:text-2xl"
     >
       <div className="flex items-center justify-between px-4">

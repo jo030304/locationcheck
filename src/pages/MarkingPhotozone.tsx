@@ -345,10 +345,10 @@ const MarkingPhotozone = (props: MarkingPhotozoneProps = {}) => {
       {/* 컨텐츠 */}
       <main className="mx-auto w-full max-w-[420px] px-4 pb-24">
         {/* 안내 배너 */}
-        <div className="flex justify-center items-center bg-[#E0F2D9] text-[#498952] font-medium text-[12px] px-4 py-3 rounded-xl mb-4 leading-relaxed">
+        <div className="flex justify-center items-center bg-[#E0F2D9] text-[#498952] font-medium text-[12px] px-4 py-3 rounded-xl mb-4 leading-relaxed text-center">
           2시간 전에 코코가 다녀갔어요.
           <br />
-          꼬미의 흔적도 남겨볼까요?
+          {meta.name || '반려견'}의 흔적도 남겨볼까요?
         </div>
 
         {/* 리스트 */}

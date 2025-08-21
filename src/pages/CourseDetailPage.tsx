@@ -82,14 +82,48 @@ const CourseDetailPage = () => {
   const dogName = useRecoilValue(nameState);
   const dogBreed = useRecoilValue(breedState);
   const dogBirth = useRecoilValue(birthState);
+
+  // 유연한 생년월일 파서: 'YYMMDD' 또는 'YYYYMMDD' 또는 날짜 문자열
+  const parseBirthToDate = (input?: string | null): Date | null => {
+    if (!input) return null;
+    const digits = String(input).replace(/\D/g, '');
+    try {
+      if (digits.length === 6) {
+        const yy = parseInt(digits.slice(0, 2), 10);
+        const mm = parseInt(digits.slice(2, 4), 10);
+        const dd = parseInt(digits.slice(4, 6), 10);
+        // 00~49는 2000대, 50~99는 1900대로 가정
+        const fullYear = yy <= 49 ? 2000 + yy : 1900 + yy;
+        return new Date(
+          fullYear,
+          Math.max(0, (mm || 1) - 1),
+          Math.max(1, dd || 1)
+        );
+      }
+      if (digits.length === 8) {
+        const yyyy = parseInt(digits.slice(0, 4), 10);
+        const mm = parseInt(digits.slice(4, 6), 10);
+        const dd = parseInt(digits.slice(6, 8), 10);
+        return new Date(yyyy, Math.max(0, (mm || 1) - 1), Math.max(1, dd || 1));
+      }
+      // 일반 문자열 Date 파싱 시도
+      const d = new Date(input);
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  };
+
   const dogAge = (() => {
-    if (!dogBirth) return null;
-    const b = new Date(dogBirth);
-    const t = new Date();
-    let age = t.getFullYear() - b.getFullYear();
-    const mdiff = t.getMonth() - b.getMonth();
-    if (mdiff < 0 || (mdiff === 0 && t.getDate() < b.getDate())) age--;
-    return Math.max(age, 0);
+    const b = parseBirthToDate(dogBirth);
+    if (!b) return null;
+    const now = new Date();
+    let age = now.getFullYear() - b.getFullYear();
+    const monthDiff = now.getMonth() - b.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < b.getDate()))
+      age--;
+    if (age < 0) return 0; // 미래 날짜 방어
+    return age;
   })();
 
   const [photozones, setPhotozones] = useState<any[]>([]);
@@ -203,7 +237,7 @@ const CourseDetailPage = () => {
 
         {/* 3) 이미지 아래 강아지 정보 */}
         <div className="flex items-center px-5 py-3 bg-white">
-          <Profile className scale={1.5} basePadding={2} />
+          <Profile scale={1.5} basePadding={2} />
           <div className="ml-3 leading-tight">
             {/* 이름 */}
             <div className="text-sm font-semibold text-gray-900">
@@ -211,7 +245,7 @@ const CourseDetailPage = () => {
             </div>
             {/* 견종, 나이 */}
             <div className="text-[12px] text-gray-500">
-              {[dogBreed, dogAge !== null ? `${dogAge}살` : null]
+              {[dogBreed, dogAge != null ? `${dogAge}살` : null]
                 .filter(Boolean)
                 .join(', ') || '정보 없음'}
             </div>

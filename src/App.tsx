@@ -2,7 +2,12 @@ import './App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useSetRecoilState } from 'recoil';
-import { currentLocationState, locationWatcherIdState } from './hooks/walkAtoms';
+import {
+  currentLocationState,
+  locationWatcherIdState,
+} from './hooks/walkAtoms';
+import { nameState, breedState, birthState } from './hooks/animalInfoAtoms';
+import { getMyProfile } from './services/users';
 
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -65,10 +70,54 @@ function GlobalLocationTracker() {
   return null;
 }
 
+// 전역 프로필 하이드레이터: 새로고침 시에도 반려견 정보를 유지
+function GlobalProfileHydrator() {
+  const setName = useSetRecoilState(nameState);
+  const setBreed = useSetRecoilState(breedState);
+  const setBirth = useSetRecoilState(birthState);
+
+  useEffect(() => {
+    const hydrate = async () => {
+      try {
+        const ssName = sessionStorage.getItem('petName');
+        const ssBreed = sessionStorage.getItem('petBreed');
+        const ssBirth = sessionStorage.getItem('petBirth');
+        if (ssName || ssBreed || ssBirth) {
+          if (ssName) setName(ssName);
+          if (ssBreed) setBreed(ssBreed);
+          if (ssBirth) setBirth(ssBirth);
+          return;
+        }
+
+        const res: any = await getMyProfile();
+        const data: any = res?.data ?? res;
+        const p: any = data?.data ?? data;
+        const petName: string = p?.petName || '';
+        const petBreed: string = p?.dogBreed?.name || '';
+        const petBirth: string = p?.petBirthDate || '';
+        setName(petName);
+        setBreed(petBreed);
+        setBirth(petBirth);
+        try {
+          sessionStorage.setItem('petName', petName);
+          sessionStorage.setItem('petBreed', petBreed);
+          if (petBirth) sessionStorage.setItem('petBirth', petBirth);
+        } catch {}
+      } catch {
+        // 프로필 로드 실패시 무시(기본값 유지)
+      }
+    };
+    hydrate();
+  }, [setName, setBreed, setBirth]);
+
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <GlobalLocationTracker />
+      <GlobalProfileHydrator />
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/homepage" element={<HomePage />} />
@@ -99,7 +148,10 @@ function App() {
         />
         <Route path="/course_photozones" element={<CoursePhotozones />} />
         <Route path="/search_dog" element={<SearchDog />} />
-        <Route path="/recommended_course_list" element={<Recommended_course_list/>} />
+        <Route
+          path="/recommended_course_list"
+          element={<Recommended_course_list />}
+        />
         <Route path="/marking_photozone" element={<MarkingPhotozone />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

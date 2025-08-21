@@ -255,7 +255,7 @@ export default function BottomSheet({ mapRef }: Props) {
                         })
                       }
                     >
-                      <div className="relative rounded-lg overflow-hidden bg-gradient-to-br from-green-100 to-green-50 w-[40vh] h-[20vh]">
+                      <div className="relative rounded-lg overflow-hidden w-[30vh] h-[20vh]">
                         {course.coverImageUrl ||
                         course.photoUrl ||
                         course.coursePhotoUrl ? (
@@ -270,7 +270,7 @@ export default function BottomSheet({ mapRef }: Props) {
                               course.name ||
                               `코스 ${idx + 1}`
                             }
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
@@ -360,7 +360,7 @@ export default function BottomSheet({ mapRef }: Props) {
                                 record.photoUrl
                               }
                               alt={`산책 ${idx + 1}`}
-                              className="w-full h-full object-contain"
+                              className="w-full h-full object-cover"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">

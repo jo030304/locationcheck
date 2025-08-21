@@ -487,6 +487,11 @@ const Walk_existing = () => {
       })();
     }
 
+    // 2.5) 코스명 세션 저장 (평가/일지 헤더용)
+    try {
+      if (courseName) sessionStorage.setItem('last_course_name', courseName);
+    } catch {}
+
     // 3) 즉시 이동 (기존 코스 산책도 항상 꼬리콥터 평가 후 일지로 이동)
     navigate('/koricopter?result=no');
   };
@@ -546,6 +551,12 @@ const Walk_existing = () => {
           finalDistanceMeters: Math.floor(distance),
           finalPathCoordinates: pathRef.current,
         });
+
+        // 코스명 세션 저장(이후 /walk_record_after_walk 헤더에서 사용)
+        try {
+          if (courseName)
+            sessionStorage.setItem('last_course_name', courseName);
+        } catch {}
       }
     } catch (e) {
       console.warn('endWalk failed on cancel path (proceed anyway):', e);

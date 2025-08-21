@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Save from './Save';
 import { useNavigate } from 'react-router-dom';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
@@ -25,6 +25,28 @@ const Walk_record_after_walk = () => {
   const mapCaptureImage = useRecoilValue(mapCaptureImageState);
   const setMapCaptureImage = useSetRecoilState(mapCaptureImageState);
   const name = useRecoilValue(nameState);
+
+  // 코스명 표시 우선순위: last_course_name → selected_course 파싱 → 공백
+  const courseLabel = useMemo(() => {
+    try {
+      const fromLast = (
+        sessionStorage.getItem('last_course_name') || ''
+      ).trim();
+      if (fromLast) return fromLast;
+      const raw = sessionStorage.getItem('selected_course');
+      if (raw) {
+        const obj = JSON.parse(raw);
+        const c =
+          obj?.course_name ||
+          obj?.courseName ||
+          obj?.course?.course_name ||
+          obj?.course?.courseName ||
+          obj?.name;
+        if (c && String(c).trim()) return String(c).trim();
+      }
+    } catch {}
+    return '';
+  }, []);
 
   // 페이지 언마운트 시 이미지 초기화
   useEffect(() => {
@@ -137,7 +159,9 @@ const Walk_record_after_walk = () => {
         </div>
         <p className="text-[17px] font-semibold">
           <span className="text-[#4FA65B]">{name || '반려견'}</span>와 함께한
-          오솔길 코스
+          <span className="ml-1">
+            {courseLabel ? `${courseLabel} 코스` : '코스'}
+          </span>
         </p>
       </div>
 
