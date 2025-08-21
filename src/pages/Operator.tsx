@@ -27,9 +27,15 @@ type EndModalOptions = {
   cancelText?: string;
 };
 
+type MapRefLike = {
+  current?: {
+    captureMap?: () => Promise<string | null> | string | null;
+  } | null;
+};
+
 type Props = {
   onMark: () => void;
-  mapRef?: any;
+  mapRef?: MapRefLike;
   /** Walk_existing = true(일시정지 확인 모달 필요), Walk_new = false */
   confirmOnPause?: boolean;
   /** 종료 모달 카피(페이지별 커스텀) */
@@ -39,6 +45,9 @@ type Props = {
   onEndConfirmOverride?: () => void | Promise<void>;
   /** ✅ 선택: 종료 모달 '취소(=종료하기)' 동작 오버라이드 (Walk_existing에서만 사용) */
   onEndCancelOverride?: () => void | Promise<void>;
+
+  /** ✅ 선택: 종료 모달을 띄우지 않고 즉시 종료 동작 실행 */
+  skipEndModal?: boolean;
 };
 
 const Operator = ({
@@ -48,6 +57,7 @@ const Operator = ({
   endModal,
   onEndConfirmOverride,
   onEndCancelOverride,
+  skipEndModal = false,
 }: Props) => {
   const navigate = useNavigate();
 
@@ -83,8 +93,10 @@ const Operator = ({
     if (!activeId) {
       try {
         const ss = sessionStorage.getItem('active_walk_record_id');
-        if (ss) activeId = ss as any;
-      } catch {}
+        if (ss) activeId = ss as string;
+      } catch {
+        /* no-op */
+      }
     }
     if (!activeId) {
       console.error('walkRecordId가 없습니다!');
@@ -94,7 +106,7 @@ const Operator = ({
     }
 
     // 지도 캡처
-    if (mapRef?.current) {
+    if (mapRef?.current && typeof mapRef.current.captureMap === 'function') {
       try {
         const capturedImage = await mapRef.current.captureMap();
         if (capturedImage) setMapCaptureImage(capturedImage);
@@ -202,7 +214,19 @@ const Operator = ({
 
         {/* 오른쪽: 종료 → EndButton 모달 */}
         <button
-          onClick={() => setShowEndModal(true)}
+          onClick={async () => {
+            if (skipEndModal) {
+              // 모달 없이 즉시 종료 동작 실행: 우선 오버라이드가 있으면 그걸 사용
+              if (onEndCancelOverride) {
+                await onEndCancelOverride();
+                return;
+              }
+              // 없으면 기본 종료 로직(handleConfirmEnd)
+              await handleConfirmEnd();
+              return;
+            }
+            setShowEndModal(true);
+          }}
           className="flex-1 flex flex-col items-center justify-center"
         >
           <BsStopCircleFill className="w-[6vh] h-[6vh] text-[#CCCCCC] cursor-pointer" />

@@ -634,12 +634,8 @@ const Walk_existing = () => {
             onMark={() => setMarkRequested(true)}
             mapRef={mapRef}
             confirmOnPause={true}
-            endModal={{
-              message: '산책을 종료할까요?',
-              subMessage: '지금까지의 경로와 마킹이 저장됩니다.',
-              confirmText: '계속하기',
-              cancelText: '종료하기',
-            }}
+            // 종료 모달 없이 즉시 종료
+            skipEndModal={true}
             // ✅ 이 페이지에서만 동작 오버라이드
             onEndConfirmOverride={handleEndKeepWalking}
             onEndCancelOverride={handleEndToRecordAfter}
