@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useImperativeHandle,
+  forwardRef,
+} from 'react';
 import { MdWaterDrop } from 'react-icons/md';
 import { renderToString } from 'react-dom/server';
 import { useRecoilValue } from 'recoil';
@@ -15,7 +21,13 @@ type BasePathOptions = {
   strokeColor?: string;
   strokeWeight?: number;
   strokeOpacity?: number;
-  strokeStyle?: 'solid' | 'shortdash' | 'shortdot' | 'dash' | 'dot' | 'longdash';
+  strokeStyle?:
+    | 'solid'
+    | 'shortdash'
+    | 'shortdot'
+    | 'dash'
+    | 'dot'
+    | 'longdash';
 };
 
 interface KakaoMapProps {
@@ -59,7 +71,10 @@ const KakaoMap = forwardRef(function KakaoMap(
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const childrenWrapperRef = useRef<HTMLDivElement>(null);
 
-  const currentPosRef = useRef<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+  const currentPosRef = useRef<{ lat: number; lng: number }>({
+    lat: 0,
+    lng: 0,
+  });
   const coordinatesRef = useRef<{ lat: number; lng: number }[]>([]);
   const prevPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const totalDistanceRef = useRef(0);
@@ -81,26 +96,39 @@ const KakaoMap = forwardRef(function KakaoMap(
   const basePathOptionsRef = useRef<BasePathOptions | undefined>(undefined);
 
   const initialPosRef = useRef(initialPosition);
+  const [mapInitialized, setMapInitialized] = useState(false);
   const globalLocation = useRecoilValue(currentLocationState);
   const paused = useRecoilValue(walkPausedState);
 
-  const [isLocationLoading, setIsLocationLoading] = useState(!initialPosition && !globalLocation);
+  const [isLocationLoading, setIsLocationLoading] = useState(
+    !initialPosition && !globalLocation
+  );
 
   /** Haversine 거리(m) */
-  function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  function haversine(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ): number {
     const R = 6371e3;
     const toRad = (deg: number) => (deg * Math.PI) / 180;
     const φ1 = toRad(lat1);
     const φ2 = toRad(lat2);
     const Δφ = toRad(lat2 - lat1);
     const Δλ = toRad(lng2 - lng1);
-    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    const a =
+      Math.sin(Δφ / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 
   /** 얕은 경로 비교 */
-  function shallowEqualPath(a?: Array<[number, number]>, b?: Array<[number, number]>) {
+  function shallowEqualPath(
+    a?: Array<[number, number]>,
+    b?: Array<[number, number]>
+  ) {
     if (!a && !b) return true;
     if (!a || !b) return false;
     if (a.length !== b.length) return false;
@@ -185,19 +213,24 @@ const KakaoMap = forwardRef(function KakaoMap(
         await new Promise((r) => setTimeout(r, 500));
       }
       try {
-        const controls = mapContainerRef.current.querySelectorAll('[class*="control"]');
+        const controls =
+          mapContainerRef.current.querySelectorAll('[class*="control"]');
         controls.forEach((el: any) => (el.style.display = 'none'));
-        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = 'none';
+        if (childrenWrapperRef.current)
+          childrenWrapperRef.current.style.display = 'none';
         await new Promise((r) => setTimeout(r, 100));
         const screenshot = await takeScreenshot();
         controls.forEach((el: any) => (el.style.display = ''));
-        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = '';
+        if (childrenWrapperRef.current)
+          childrenWrapperRef.current.style.display = '';
         if (screenshot) return screenshot;
         throw new Error('스크린샷 변환 실패');
       } catch {
-        const controls = mapContainerRef.current.querySelectorAll('[class*="control"]');
+        const controls =
+          mapContainerRef.current.querySelectorAll('[class*="control"]');
         controls.forEach((el: any) => (el.style.display = ''));
-        if (childrenWrapperRef.current) childrenWrapperRef.current.style.display = '';
+        if (childrenWrapperRef.current)
+          childrenWrapperRef.current.style.display = '';
         const canvas = document.createElement('canvas');
         canvas.width = 400;
         canvas.height = 300;
@@ -205,7 +238,8 @@ const KakaoMap = forwardRef(function KakaoMap(
         if (!ctx) return null;
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (!coordinatesRef.current.length) return canvas.toDataURL('image/png');
+        if (!coordinatesRef.current.length)
+          return canvas.toDataURL('image/png');
         const coords = coordinatesRef.current;
         const minLat = Math.min(...coords.map((c) => c.lat));
         const maxLat = Math.max(...coords.map((c) => c.lat));
@@ -218,16 +252,21 @@ const KakaoMap = forwardRef(function KakaoMap(
         const dataAspectRatio = lngRange / latRange;
         let adjustedLatRange = latRange;
         let adjustedLngRange = lngRange;
-        if (dataAspectRatio > aspectRatio) adjustedLatRange = lngRange / aspectRatio;
+        if (dataAspectRatio > aspectRatio)
+          adjustedLatRange = lngRange / aspectRatio;
         else adjustedLngRange = latRange * aspectRatio;
         const centerLat = (minLat + maxLat) / 2;
         const centerLng = (minLng + maxLng) / 2;
         const toCanvasX = (lng: number) =>
-          ((lng - (centerLng - adjustedLngRange / 2)) / adjustedLngRange) * canvas.width * (1 - padding) +
+          ((lng - (centerLng - adjustedLngRange / 2)) / adjustedLngRange) *
+            canvas.width *
+            (1 - padding) +
           (canvas.width * padding) / 2;
         const toCanvasY = (lat: number) =>
           canvas.height -
-          (((lat - (centerLat - adjustedLatRange / 2)) / adjustedLatRange) * canvas.height * (1 - padding) +
+          (((lat - (centerLat - adjustedLatRange / 2)) / adjustedLatRange) *
+            canvas.height *
+            (1 - padding) +
             (canvas.height * padding) / 2);
         ctx.strokeStyle = '#4FA65B';
         ctx.lineWidth = 3;
@@ -267,7 +306,9 @@ const KakaoMap = forwardRef(function KakaoMap(
   const showFullPath = (coordinates: { lat: number; lng: number }[]) => {
     if (!mapRef.current || !window.kakao || !coordinates.length) return;
     if (polylineRef.current) polylineRef.current.setMap(null);
-    const path = coordinates.map((c) => new window.kakao.maps.LatLng(c.lat, c.lng));
+    const path = coordinates.map(
+      (c) => new window.kakao.maps.LatLng(c.lat, c.lng)
+    );
     polylineRef.current = new window.kakao.maps.Polyline({
       path,
       strokeWeight: 5,
@@ -278,15 +319,24 @@ const KakaoMap = forwardRef(function KakaoMap(
     polylineRef.current.setMap(mapRef.current);
 
     const bounds = new window.kakao.maps.LatLngBounds();
-    coordinates.forEach((c) => bounds.extend(new window.kakao.maps.LatLng(c.lat, c.lng)));
+    coordinates.forEach((c) =>
+      bounds.extend(new window.kakao.maps.LatLng(c.lat, c.lng))
+    );
     mapRef.current.setBounds(bounds);
   };
 
-  const getStaticMapUrl = (coordinates: { lat: number; lng: number }[]): string | null => {
+  const getStaticMapUrl = (
+    coordinates: { lat: number; lng: number }[]
+  ): string | null => {
     if (!coordinates.length) return null;
-    const centerLat = coordinates.reduce((s, c) => s + c.lat, 0) / coordinates.length;
-    const centerLng = coordinates.reduce((s, c) => s + c.lng, 0) / coordinates.length;
-    const polylineCoords = coordinates.slice(0, 100).map((c) => `${c.lng},${c.lat}`).join('|');
+    const centerLat =
+      coordinates.reduce((s, c) => s + c.lat, 0) / coordinates.length;
+    const centerLng =
+      coordinates.reduce((s, c) => s + c.lng, 0) / coordinates.length;
+    const polylineCoords = coordinates
+      .slice(0, 100)
+      .map((c) => `${c.lng},${c.lat}`)
+      .join('|');
     const baseUrl = 'https://dapi.kakao.com/v2/maps/staticmap';
     const params = new URLSearchParams({
       center: `${centerLng},${centerLat}`,
@@ -307,8 +357,8 @@ const KakaoMap = forwardRef(function KakaoMap(
     if (!container) return;
 
     const pos = initialPosRef.current;
-    let initialLat = 36.5,
-      initialLng = 127.5,
+    let initialLat = 37.545354,
+      initialLng = 126.952576,
       initialLevel = 13;
     if (pos) {
       initialLat = pos.lat;
@@ -339,13 +389,52 @@ const KakaoMap = forwardRef(function KakaoMap(
     }
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && mapRef.current && currentPosRef.current.lat !== 0) {
-        mapRef.current.panTo(new window.kakao.maps.LatLng(currentPosRef.current.lat, currentPosRef.current.lng));
+      if (
+        !document.hidden &&
+        mapRef.current &&
+        currentPosRef.current.lat !== 0
+      ) {
+        mapRef.current.panTo(
+          new window.kakao.maps.LatLng(
+            currentPosRef.current.lat,
+            currentPosRef.current.lng
+          )
+        );
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    setMapInitialized(true);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
+
+  // 지도 초기화 직후, 이미 전역 위치가 있다면 즉시 현재 위치로 이동/표시
+  useEffect(() => {
+    if (testMode) return;
+    if (!mapInitialized || !mapRef.current || !globalLocation) return;
+    const { lat, lng } = globalLocation;
+    const cur = new window.kakao.maps.LatLng(lat, lng);
+    currentPosRef.current = { lat, lng };
+    if (!customOverlayRef.current) {
+      const markerContent = document.createElement('div');
+      markerContent.innerHTML = `
+        <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg); transition: transform 0.3s ease;">
+          <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
+        </svg>`;
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: cur,
+        content: markerContent,
+        yAnchor: 1,
+      });
+      overlay.setMap(mapRef.current);
+      customOverlayRef.current = overlay;
+    } else {
+      customOverlayRef.current.setPosition(cur);
+    }
+    mapRef.current.panTo(cur);
+    mapRef.current.setLevel(5);
+    if (isLocationLoading) setIsLocationLoading(false);
+  }, [mapInitialized]);
 
   // ----- 회색 전체 코스 그리기 (변경 감지 기반, Bounds는 최초 1회) -----
   useEffect(() => {
@@ -370,14 +459,19 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     // 변경 감지
     const pathChanged = !shallowEqualPath(basePathRef.current, basePath);
-    const optsChanged = !shallowEqualOptions(basePathOptionsRef.current, basePathOptions);
+    const optsChanged = !shallowEqualOptions(
+      basePathOptionsRef.current,
+      basePathOptions
+    );
 
     // 1) 경로가 실제로 바뀐 경우에만 path 업데이트 (리셋 최소화)
     if (pathChanged) {
       basePathRef.current = basePath;
       progressIndexRef.current = -1;
 
-      const pathLL = basePath.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng));
+      const pathLL = basePath.map(
+        ([lat, lng]) => new window.kakao.maps.LatLng(lat, lng)
+      );
       const strokeColor = basePathOptions?.strokeColor ?? '#CCCCCC';
       const strokeWeight = basePathOptions?.strokeWeight ?? 6;
       const strokeOpacity = basePathOptions?.strokeOpacity ?? 1;
@@ -394,7 +488,12 @@ const KakaoMap = forwardRef(function KakaoMap(
         basePolylineRef.current.setMap(mapRef.current);
       } else {
         basePolylineRef.current.setPath(pathLL);
-        basePolylineRef.current.setOptions({ strokeColor, strokeWeight, strokeOpacity, strokeStyle });
+        basePolylineRef.current.setOptions({
+          strokeColor,
+          strokeWeight,
+          strokeOpacity,
+          strokeStyle,
+        });
       }
 
       // 경로가 처음 들어온 경우에만 전체 보기로 Bounds fit
@@ -410,7 +509,12 @@ const KakaoMap = forwardRef(function KakaoMap(
       const strokeWeight = basePathOptions?.strokeWeight ?? 6;
       const strokeOpacity = basePathOptions?.strokeOpacity ?? 1;
       const strokeStyle = basePathOptions?.strokeStyle ?? 'solid';
-      basePolylineRef.current.setOptions({ strokeColor, strokeWeight, strokeOpacity, strokeStyle });
+      basePolylineRef.current.setOptions({
+        strokeColor,
+        strokeWeight,
+        strokeOpacity,
+        strokeStyle,
+      });
     }
 
     basePathOptionsRef.current = basePathOptions;
@@ -424,26 +528,32 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     const { lat, lng } = globalLocation;
     currentPosRef.current = { lat, lng };
-
-    if (isLocationLoading) {
-      setIsLocationLoading(false);
-      const cur = new window.kakao.maps.LatLng(lat, lng);
-      mapRef.current.panTo(cur);
-      mapRef.current.setLevel(5);
-
-      if (!customOverlayRef.current) {
-        const markerContent = document.createElement('div');
-        markerContent.innerHTML = `
+    const cur = new window.kakao.maps.LatLng(lat, lng);
+    // 오버레이가 없다면 지금 생성하고 최초 1회 카메라 이동/레벨 설정
+    if (!customOverlayRef.current) {
+      const markerContent = document.createElement('div');
+      markerContent.innerHTML = `
           <svg id="lucide-icon" xmlns="http://www.w3.org/2000/svg"
             width="25" height="25" viewBox="0 0 24 24" fill="none"
             stroke="rgb(80,80,255)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="transform: rotate(0deg); transition: transform 0.3s ease;">
             <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
           </svg>`;
-        const overlay = new window.kakao.maps.CustomOverlay({ position: cur, content: markerContent, yAnchor: 1 });
-        overlay.setMap(mapRef.current);
-        customOverlayRef.current = overlay;
-      }
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: cur,
+        content: markerContent,
+        yAnchor: 1,
+      });
+      overlay.setMap(mapRef.current);
+      customOverlayRef.current = overlay;
+      mapRef.current.panTo(cur);
+      mapRef.current.setLevel(5);
+      if (isLocationLoading) setIsLocationLoading(false);
+    } else if (isLocationLoading) {
+      // 로딩 플래그만 남아있는 경우에도 1회 카메라 이동 처리
+      setIsLocationLoading(false);
+      mapRef.current.panTo(cur);
+      mapRef.current.setLevel(5);
     }
 
     // 실시간 녹색 경로
@@ -480,9 +590,19 @@ const KakaoMap = forwardRef(function KakaoMap(
 
     // 마커 이동
     if (customOverlayRef.current) {
-      customOverlayRef.current.setPosition(new window.kakao.maps.LatLng(lat, lng));
+      customOverlayRef.current.setPosition(
+        new window.kakao.maps.LatLng(lat, lng)
+      );
     }
-  }, [globalLocation, drawingEnabled, onPathUpdate, onDistanceChange, isLocationLoading, paused, testMode]);
+  }, [
+    globalLocation,
+    drawingEnabled,
+    onPathUpdate,
+    onDistanceChange,
+    isLocationLoading,
+    paused,
+    testMode,
+  ]);
 
   // ----- 가상 이동 시에도 진행도 반영 -----
   useImperativeHandle(ref, () => ({
@@ -500,7 +620,8 @@ const KakaoMap = forwardRef(function KakaoMap(
       if (!mapRef.current || !window.kakao) return;
       const newPos = new window.kakao.maps.LatLng(lat, lng);
       currentPosRef.current = { lat, lng };
-      if (customOverlayRef.current) customOverlayRef.current.setPosition(newPos);
+      if (customOverlayRef.current)
+        customOverlayRef.current.setPosition(newPos);
       mapRef.current.panTo(newPos);
 
       const prev = prevPosRef.current;
@@ -515,7 +636,7 @@ const KakaoMap = forwardRef(function KakaoMap(
           const poly = new window.kakao.maps.Polyline({
             path: [prevPos, newPos],
             strokeWeight: 5,
-            strokeColor: '#FF0000', // 테스트용 색
+            strokeColor: '#4FA65B',
             strokeOpacity: 1,
             strokeStyle: 'solid',
           });
@@ -539,7 +660,11 @@ const KakaoMap = forwardRef(function KakaoMap(
     const { lat, lng } = currentPosRef.current;
     if (lat === 0 && lng === 0) return;
     const pos = new window.kakao.maps.LatLng(lat, lng);
-    const iconHTML = renderToString(<MdWaterDrop style={{ width: '20px', height: '20px', color: '#4FA65B' }} />);
+    const iconHTML = renderToString(
+      <MdWaterDrop
+        style={{ width: '20px', height: '20px', color: '#4FA65B' }}
+      />
+    );
     const markerDiv = document.createElement('div');
     markerDiv.innerHTML = `
       <div style="
@@ -598,7 +723,10 @@ const KakaoMap = forwardRef(function KakaoMap(
           <span className="text-sm text-gray-700">현재 위치 확인 중...</span>
         </div>
       )}
-      <div ref={childrenWrapperRef} className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none">
+      <div
+        ref={childrenWrapperRef}
+        className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none"
+      >
         <div className="pointer-events-auto">{children}</div>
       </div>
     </div>

@@ -14,6 +14,10 @@ const HomePage = () => {
   const mapRef = useRef<any>(null);
   const petName = useRecoilValue(nameState);
   const currentLocation = useRecoilValue(currentLocationState);
+  const [initialMapPosition, setInitialMapPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // 요약 프로필 로드 (메인 상단에 사용할 수 있음)
   useEffect(() => {
@@ -42,6 +46,22 @@ const HomePage = () => {
     };
   }, []);
 
+  // 첫 진입 시 1회 현재 위치를 빠르게 받아 지도 초기 중심으로 사용
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setInitialMapPosition({ lat, lng });
+      },
+      () => {
+        // 무시: 권한 거부 시 기본 좌표 유지
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 7000 }
+    );
+  }, []);
+
   const handleMoveToMyLocation = () => {
     mapRef.current?.moveToMyLocation?.(); // KakaoMap.tsx의 useImperativeHandle에서 정의한 메서드
   };
@@ -68,7 +88,7 @@ const HomePage = () => {
         onMarkHandled={handleMark}
         drawingEnabled={false}
         ref={mapRef}
-        initialPosition={currentLocation}
+        initialPosition={initialMapPosition || currentLocation}
       >
         <LocationButton />
         <BottomSheet mapRef={mapRef} />

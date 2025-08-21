@@ -31,25 +31,32 @@ const Walk_new = () => {
   // testMode는 유지하되, 버튼은 testMode와 관계없이 항상 동작/표시
   const [testMode, setTestMode] = useState(false);
 
-  const [virtualPosition, setVirtualPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [virtualPosition, setVirtualPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const walkRecordId = useRecoilValue(walkRecordIdState);
   const startedAt = useRecoilValue(walkStartedAtState);
   const pathRef = useRef<number[][]>([]);
   const mapRef = useRef<any>(null);
+  const cheatActivatedRef = useRef(false);
   const [markingCount, setMarkingCount] = useRecoilState(walkMarkingCountState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setPathCoordinates] = useRecoilState(walkPathCoordinatesState);
   const currentLocation = useRecoilValue(currentLocationState);
 
   // onPathUpdate 콜백 메모이제이션
-  const handlePathUpdate = useCallback((c: { lat: number; lng: number }) => {
-    pathRef.current.push([c.lat, c.lng]);
-    setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
-  }, [setPathCoordinates]);
+  const handlePathUpdate = useCallback(
+    (c: { lat: number; lng: number }) => {
+      pathRef.current.push([c.lat, c.lng]);
+      setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
+    },
+    [setPathCoordinates]
+  );
 
   // 기준 위치 가져오기
   const getBasePosition = useCallback((): { lat: number; lng: number } => {
-    const fallback = currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+    const fallback = currentLocation ?? { lat: 37.545354, lng: 126.952576 };
     const fromMap = mapRef.current?.getCurrentPosition?.();
     const base = virtualPosition ?? fromMap ?? fallback;
     if (!base || base.lat == null || base.lng == null) return fallback;
@@ -57,26 +64,41 @@ const Walk_new = () => {
   }, [virtualPosition, currentLocation]);
 
   // 위/경도 50m 이동 유틸 (북=+50, 남=-50, 동=+50, 서=-50)
-  const moveByMeters = useCallback((northMeters: number, eastMeters: number) => {
-    const base = getBasePosition();
-    const latRad = (base.lat * Math.PI) / 180;
-    const dLat = northMeters / 111_000; // 위도 1도 ≈ 111km
-    const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6); // 경도 변환 안전값
-    const dLng = eastMeters / denom;
+  const moveByMeters = useCallback(
+    (northMeters: number, eastMeters: number) => {
+      // 치팅 시작: 첫 버튼 입력 순간부터 GPS 추적 차단(testMode on)
+      if (!cheatActivatedRef.current) {
+        cheatActivatedRef.current = true;
+        setTestMode(true);
+        const current = mapRef.current?.getCurrentPosition?.() ||
+          currentLocation || { lat: 37.545354, lng: 126.952576 };
+        // 기준 좌표를 현재 위치로 고정하여 이후 이동이 누적되도록 함
+        if (current && current.lat != null && current.lng != null) {
+          setVirtualPosition({ lat: current.lat, lng: current.lng });
+        }
+      }
 
-    const newLat = base.lat + dLat;
-    const newLng = base.lng + dLng;
+      const base = getBasePosition();
+      const latRad = (base.lat * Math.PI) / 180;
+      const dLat = northMeters / 111_000; // 위도 1도 ≈ 111km
+      const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6); // 경도 변환 안전값
+      const dLng = eastMeters / denom;
 
-    setVirtualPosition({ lat: newLat, lng: newLng });
+      const newLat = base.lat + dLat;
+      const newLng = base.lng + dLng;
 
-    if (mapRef.current?.updatePosition) {
-      mapRef.current.updatePosition(newLat, newLng);
-    } else {
-      console.error('❌ updatePosition 메서드가 없습니다');
-    }
+      setVirtualPosition({ lat: newLat, lng: newLng });
 
-    handlePathUpdate({ lat: newLat, lng: newLng });
-  }, [getBasePosition, handlePathUpdate]);
+      if (mapRef.current?.updatePosition) {
+        mapRef.current.updatePosition(newLat, newLng);
+      } else {
+        console.error('❌ updatePosition 메서드가 없습니다');
+      }
+
+      handlePathUpdate({ lat: newLat, lng: newLng });
+    },
+    [getBasePosition, handlePathUpdate]
+  );
 
   // 주기적으로 서버에 경로 업데이트
   useEffect(() => {
@@ -89,7 +111,7 @@ const Walk_new = () => {
         currentPathCoordinates: pathRef.current,
         currentDistanceMeters: Math.floor(distance),
         currentDurationSeconds: durationSec,
-      }).catch(() => { });
+      }).catch(() => {});
     }, 4000);
     return () => clearInterval(iv);
   }, [walkRecordId, startedAt, distance]);
@@ -209,7 +231,10 @@ const Walk_new = () => {
               // 백엔드 응답에서 id 추출 (data 래핑/비래핑 모두 대비)
               const saved = (savedRes as any)?.data ?? savedRes;
               const markingPhotoId =
-                saved?.id || saved?.markingPhotoId || saved?.data?.id || undefined;
+                saved?.id ||
+                saved?.markingPhotoId ||
+                saved?.data?.id ||
+                undefined;
 
               const payload = {
                 fileUrl,
@@ -219,16 +244,30 @@ const Walk_new = () => {
                 ts: Date.now(),
                 markingPhotoId, // ✅ 추가
               };
-              sessionStorage.setItem('last_marking_photo', JSON.stringify(payload)); // 새로고침 대비
+              sessionStorage.setItem(
+                'last_marking_photo',
+                JSON.stringify(payload)
+              ); // 새로고침 대비
 
               // ✅ 로컬 히스토리 저장 (중복 방지)
               try {
                 const KEY = 'marking_photos';
-                const item = { fileUrl, lat, lng, ts: payload.ts, markingPhotoId };
-                const prev: any[] = JSON.parse(localStorage.getItem(KEY) || '[]');
-                const exists = prev.some((p) =>
-                  (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
-                  (!markingPhotoId && p.fileUrl === fileUrl && p.ts === payload.ts)
+                const item = {
+                  fileUrl,
+                  lat,
+                  lng,
+                  ts: payload.ts,
+                  markingPhotoId,
+                };
+                const prev: any[] = JSON.parse(
+                  localStorage.getItem(KEY) || '[]'
+                );
+                const exists = prev.some(
+                  (p) =>
+                    (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
+                    (!markingPhotoId &&
+                      p.fileUrl === fileUrl &&
+                      p.ts === payload.ts)
                 );
                 const next = exists ? prev : [item, ...prev].slice(0, 200);
                 localStorage.setItem(KEY, JSON.stringify(next));

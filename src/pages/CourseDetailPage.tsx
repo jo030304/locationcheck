@@ -13,15 +13,15 @@ type ProfileButtonProps = {
   to?: string;
   imgSrc?: string;
   alt?: string;
-  baseSize?: number;     // 기준 지름(px)
-  basePadding?: number;  // 기준 패딩(px)
-  scale?: number;        // 전체 스케일 (예: 1.25면 25% 확대)
+  baseSize?: number; // 기준 지름(px)
+  basePadding?: number; // 기준 패딩(px)
+  scale?: number; // 전체 스케일 (예: 1.25면 25% 확대)
 };
 
 function ProfileButton({
-  to = "/my_profile",
-  imgSrc = "/기본 마이 프로필.png",
-  alt = "기본 마이 프로필",
+  to = '/my_profile',
+  imgSrc = '/기본 마이 프로필.png',
+  alt = '기본 마이 프로필',
   baseSize = 28,
   basePadding = 6,
   scale = 1,
@@ -103,7 +103,7 @@ const CourseDetailPage = () => {
           const pd = (pz as any)?.data ?? pz;
           setPhotozones(pd?.data?.photozones || pd?.photozones || []);
         }
-      } catch { }
+      } catch {}
     })();
   }, [courseId, course]);
 
@@ -136,10 +136,23 @@ const CourseDetailPage = () => {
     }
     try {
       setStarting(true);
-      const res = await startWalk({ walk_type: 'EXISTING_COURSE', course_id: courseId });
-      const data = (res as any)?.data ?? res;
-      const id = data?.data?.walk_record_id || data?.walk_record_id;
-      setWalkRecordId(id || null);
+      const res = await startWalk({
+        walk_type: 'EXISTING_COURSE',
+        course_id: courseId,
+      });
+      const data: any = (res as any)?.data ?? res;
+      const u = data?.data ?? data;
+      const id =
+        u?.walk_record_id ??
+        u?.walkRecordId ??
+        u?.data?.walk_record_id ??
+        u?.data?.walkRecordId ??
+        null;
+      if (!id) throw new Error('walkRecordId missing');
+      setWalkRecordId(id);
+      try {
+        sessionStorage.setItem('active_walk_record_id', String(id));
+      } catch {}
       setWalkStartedAt(Date.now());
       navigate('/walk_countdown?state=existing', {
         state: { startType: 'existing', from: 'exist', courseId },
@@ -190,10 +203,7 @@ const CourseDetailPage = () => {
 
         {/* 3) 이미지 아래 강아지 정보 */}
         <div className="flex items-center px-5 py-3 bg-white">
-          <Profile
-            className
-            scale={1.5} basePadding={2}
-          />
+          <Profile className scale={1.5} basePadding={2} />
           <div className="ml-3 leading-tight">
             {/* 이름 */}
             <div className="text-sm font-semibold text-gray-900">
@@ -216,11 +226,16 @@ const CourseDetailPage = () => {
           <h1 className="text-xl font-bold flex justify-between items-center">
             {/* 왼쪽: 코스 이름 */}
             <span>
-              {course?.courseName || course?.name || course?.course_name || '코스 이름'}
+              {course?.courseName ||
+                course?.name ||
+                course?.course_name ||
+                '코스 이름'}
             </span>
 
             {/* 오른쪽: 점수 */}
-            {(course?.averageTailcopterScore || course?.tailcopterScore || course?.score) && (
+            {(course?.averageTailcopterScore ||
+              course?.tailcopterScore ||
+              course?.score) && (
               <span className="flex items-center gap-1 text-base font-normal text-gray-600">
                 <span>🦴</span>
                 <span>
@@ -239,7 +254,8 @@ const CourseDetailPage = () => {
             <div className="flex items-center gap-12">
               <span className="text-sm text-gray-500 min-w-[80px]">거리</span>
               <span className="text-base font-medium">
-                {course?.courseLengthMeters !== undefined && course?.courseLengthMeters !== null
+                {course?.courseLengthMeters !== undefined &&
+                course?.courseLengthMeters !== null
                   ? formatDistance(course.courseLengthMeters)
                   : '정보 없음'}
               </span>
@@ -247,19 +263,29 @@ const CourseDetailPage = () => {
             <div className="flex items-center gap-12">
               <span className="text-sm text-gray-500 min-w-[80px]">난이도</span>
               <span className="text-base font-medium">
-                {course?.difficulty ? formatDifficulty(course.difficulty) : '정보 없음'}
+                {course?.difficulty
+                  ? formatDifficulty(course.difficulty)
+                  : '정보 없음'}
               </span>
             </div>
             <div className="flex items-center gap-12">
-              <span className="text-sm text-gray-500 min-w-[80px]">추천 견종</span>
+              <span className="text-sm text-gray-500 min-w-[80px]">
+                추천 견종
+              </span>
               <span className="text-base font-medium">
-                {course?.recommendedPetSize ? formatPetSize(course.recommendedPetSize) : '정보 없음'}
+                {course?.recommendedPetSize
+                  ? formatPetSize(course.recommendedPetSize)
+                  : '정보 없음'}
               </span>
             </div>
             <div className="flex items-start gap-12">
-              <span className="text-sm text-gray-500 min-w-[80px]">코스 특징</span>
+              <span className="text-sm text-gray-500 min-w-[80px]">
+                코스 특징
+              </span>
               <div className="flex flex-wrap gap-2">
-                {course?.features && Array.isArray(course.features) && course.features.length > 0 ? (
+                {course?.features &&
+                Array.isArray(course.features) &&
+                course.features.length > 0 ? (
                   course.features.map((feature: string, idx: number) => (
                     <span
                       key={idx}
@@ -288,7 +314,9 @@ const CourseDetailPage = () => {
                 />
                 <button
                   className="w-full border border-gray-300 text-gray-700 font-medium py-4 rounded-full hover:bg-gray-50 transition-colors bg-transparent"
-                  onClick={() => navigate('/course_photozones', { state: { photozones } })}
+                  onClick={() =>
+                    navigate('/course_photozones', { state: { photozones } })
+                  }
                 >
                   포토존
                 </button>

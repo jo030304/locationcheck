@@ -52,8 +52,8 @@ export default function Recommended_course_list() {
     (async () => {
       try {
         setLoading(true);
-        const lat = currentLocation?.lat ?? 37.5665;
-        const lng = currentLocation?.lng ?? 126.9780;
+        const lat = currentLocation?.lat ?? 37.545354;
+        const lng = currentLocation?.lng ?? 126.952576;
 
         const res = await getCourseRecommendations({
           latitude: lat,
@@ -73,11 +73,17 @@ export default function Recommended_course_list() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const formatDistance = (m?: number) =>
-    typeof m === 'number' ? (m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`) : '';
+    typeof m === 'number'
+      ? m >= 1000
+        ? `${(m / 1000).toFixed(1)}km`
+        : `${m}m`
+      : '';
 
   const formatMinutes = (s?: number) =>
     typeof s === 'number' ? `${Math.round(s / 60)}분` : '';
@@ -91,27 +97,35 @@ export default function Recommended_course_list() {
           onClick={() => navigate(-1)}
         />
         <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800">
-          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>의 산책일지
+          <span className="text-[#4FA65B]">{dogName || '반려견'}</span>의
+          산책일지
         </h1>
       </div>
 
       {/* 리스트 */}
       <main className="px-4">
         {loading ? (
-          <div className="py-12 text-center text-gray-400 text-sm">추천 코스를 불러오는 중…</div>
+          <div className="py-12 text-center text-gray-400 text-sm">
+            추천 코스를 불러오는 중…
+          </div>
         ) : items.length === 0 ? (
-          <div className="py-12 text-center text-gray-400 text-sm">표시할 추천 코스가 없어요</div>
+          <div className="py-12 text-center text-gray-400 text-sm">
+            표시할 추천 코스가 없어요
+          </div>
         ) : (
           <ul className="divide-y divide-neutral-200">
             {items.map((course, i) => {
               const title = course.courseName || course.name || `코스 ${i + 1}`;
               const score = getTailScore(course);
-              const img = course.coverImageUrl || course.photoUrl || course.coursePhotoUrl;
+              const img =
+                course.coverImageUrl ||
+                course.photoUrl ||
+                course.coursePhotoUrl;
 
               const distance =
                 typeof course.courseLengthMeters === 'number'
                   ? formatDistance(course.courseLengthMeters)
-                  : (course.distanceText || '');
+                  : course.distanceText || '';
 
               const duration =
                 typeof course.estimatedDurationSeconds === 'number'
@@ -119,8 +133,13 @@ export default function Recommended_course_list() {
                   : '';
 
               const meta = [distance, duration].filter(Boolean).join(' · ');
-              const tagsArr = (course.features || course.tags || []).slice(0, 3);
-              const tags = tagsArr.map((t) => (t?.startsWith('#') ? t : `#${t}`));
+              const tagsArr = (course.features || course.tags || []).slice(
+                0,
+                3
+              );
+              const tags = tagsArr.map((t) =>
+                t?.startsWith('#') ? t : `#${t}`
+              );
 
               return (
                 <li key={(course.id as any) ?? i}>
@@ -147,7 +166,10 @@ export default function Recommended_course_list() {
                       {tags.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {tags.map((t, idx) => (
-                            <span key={idx} className="text-[11px] text-neutral-400">
+                            <span
+                              key={idx}
+                              className="text-[11px] text-neutral-400"
+                            >
                               {t}
                             </span>
                           ))}

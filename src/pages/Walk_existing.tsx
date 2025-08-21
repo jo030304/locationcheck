@@ -37,19 +37,27 @@ const Walk_existing = () => {
   const mapRef = useRef<any>(null);
   const pathRef = useRef<number[][]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cheatActivatedRef = useRef(false);
 
   // ---- 위치/테스트 모드 ----
   const currentLocation = useRecoilValue(currentLocationState);
   const [testMode, setTestMode] = useState(false); // 유지 (버튼 동작과 무관)
-  const [virtualPosition, setVirtualPosition] =
-    useState<{ lat: number; lng: number } | null>(null);
+  const [virtualPosition, setVirtualPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // 출발 기준(앵커)
   const firstTrackRef = useRef<{ lat: number; lng: number } | null>(null);
-  const initialFixRef = useRef<{ lat: number; lng: number } | null>(currentLocation ?? null);
+  const initialFixRef = useRef<{ lat: number; lng: number } | null>(
+    currentLocation ?? null
+  );
   useEffect(() => {
     if (currentLocation && !initialFixRef.current) {
-      initialFixRef.current = { lat: currentLocation.lat, lng: currentLocation.lng };
+      initialFixRef.current = {
+        lat: currentLocation.lat,
+        lng: currentLocation.lng,
+      };
     }
   }, [currentLocation]);
 
@@ -57,9 +65,7 @@ const Walk_existing = () => {
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
 
   const incomingCourse =
-    location?.state?.course ??
-    location?.state?.selectedCourse ??
-    null;
+    location?.state?.course ?? location?.state?.selectedCourse ?? null;
 
   const incomingCourseId =
     location?.state?.courseId ??
@@ -68,10 +74,18 @@ const Walk_existing = () => {
     incomingCourse?.courseId ??
     null;
 
-  const ssCourseRaw = typeof window !== 'undefined' ? sessionStorage.getItem('selected_course') : null;
-  const ssCourseIdRaw = typeof window !== 'undefined' ? sessionStorage.getItem('selected_course_id') : null;
+  const ssCourseRaw =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('selected_course')
+      : null;
+  const ssCourseIdRaw =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('selected_course_id')
+      : null;
   const ssCourse = ssCourseRaw ? safeJsonParse(ssCourseRaw) : null;
-  const ssCourseId = ssCourseIdRaw ?? (ssCourse?.course_id || ssCourse?.id || ssCourse?.courseId);
+  const ssCourseId =
+    ssCourseIdRaw ??
+    (ssCourse?.course_id || ssCourse?.id || ssCourse?.courseId);
 
   useEffect(() => {
     let active = true;
@@ -148,12 +162,18 @@ const Walk_existing = () => {
 
   // ✅ 최소 진행거리: 전체 거리의 50%
   const MIN_PROGRESS_METERS = useMemo(
-    () => (totalDistanceMeters > 0 ? totalDistanceMeters * 0.5 : Number.POSITIVE_INFINITY),
+    () =>
+      totalDistanceMeters > 0
+        ? totalDistanceMeters * 0.5
+        : Number.POSITIVE_INFINITY,
     [totalDistanceMeters]
   );
 
   // ✅ 전체 코스 경로(회색) 프리셋
-  const basePath = useMemo(() => extractCoursePath(selectedCourse), [selectedCourse]);
+  const basePath = useMemo(
+    () => extractCoursePath(selectedCourse),
+    [selectedCourse]
+  );
 
   // ✅ basePathOptions는 useMemo로 (불필요 렌더 방지용, KakaoMap도 안전하게 처리함)
   const basePathOptions = useMemo(
@@ -180,7 +200,8 @@ const Walk_existing = () => {
   // ---- 경로 갱신 콜백 ----
   const handlePathUpdate = useCallback(
     (c: { lat: number; lng: number }) => {
-      if (!firstTrackRef.current) firstTrackRef.current = { lat: c.lat, lng: c.lng };
+      if (!firstTrackRef.current)
+        firstTrackRef.current = { lat: c.lat, lng: c.lng };
       pathRef.current.push([c.lat, c.lng]);
       setPathCoordinates((prev) => [...prev, [c.lat, c.lng]]);
     },
@@ -189,7 +210,7 @@ const Walk_existing = () => {
 
   // 기준 위치 가져오기
   const getBasePosition = useCallback((): { lat: number; lng: number } => {
-    const fallback = currentLocation ?? { lat: 37.5665, lng: 126.9780 };
+    const fallback = currentLocation ?? { lat: 37.545354, lng: 126.952576 };
     const fromMap = mapRef.current?.getCurrentPosition?.();
     const base = virtualPosition ?? fromMap ?? fallback;
     if (!base || base.lat == null || base.lng == null) return fallback;
@@ -197,23 +218,37 @@ const Walk_existing = () => {
   }, [virtualPosition, currentLocation]);
 
   // 위/경도 50m 이동 유틸
-  const moveByMeters = useCallback((northMeters: number, eastMeters: number) => {
-    const base = getBasePosition();
-    const latRad = (base.lat * Math.PI) / 180;
-    const dLat = northMeters / 111_000;
-    const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6);
-    const dLng = eastMeters / denom;
+  const moveByMeters = useCallback(
+    (northMeters: number, eastMeters: number) => {
+      // 치팅 시작: 첫 버튼 입력 순간부터 GPS 추적 차단(testMode on)
+      if (!cheatActivatedRef.current) {
+        cheatActivatedRef.current = true;
+        setTestMode(true);
+        const current = mapRef.current?.getCurrentPosition?.() ||
+          currentLocation || { lat: 37.545354, lng: 126.952576 };
+        if (current && current.lat != null && current.lng != null) {
+          setVirtualPosition({ lat: current.lat, lng: current.lng });
+        }
+      }
 
-    const newLat = base.lat + dLat;
-    const newLng = base.lng + dLng;
+      const base = getBasePosition();
+      const latRad = (base.lat * Math.PI) / 180;
+      const dLat = northMeters / 111_000;
+      const denom = Math.max(Math.cos(latRad) * 111_000, 1e-6);
+      const dLng = eastMeters / denom;
 
-    setVirtualPosition({ lat: newLat, lng: newLng });
+      const newLat = base.lat + dLat;
+      const newLng = base.lng + dLng;
 
-    if (mapRef.current?.updatePosition) {
-      mapRef.current.updatePosition(newLat, newLng);
-    }
-    handlePathUpdate({ lat: newLat, lng: newLng });
-  }, [getBasePosition, handlePathUpdate]);
+      setVirtualPosition({ lat: newLat, lng: newLng });
+
+      if (mapRef.current?.updatePosition) {
+        mapRef.current.updatePosition(newLat, newLng);
+      }
+      handlePathUpdate({ lat: newLat, lng: newLng });
+    },
+    [getBasePosition, handlePathUpdate]
+  );
 
   // ---- 주기적 경로 업로드 ----
   useEffect(() => {
@@ -259,7 +294,9 @@ const Walk_existing = () => {
 
     // 2) 저장은 백그라운드로
     if (walkRecordId) {
-      const durationSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+      const durationSec = startedAt
+        ? Math.floor((Date.now() - startedAt) / 1000)
+        : 0;
       (async () => {
         try {
           await endWalk(walkRecordId, {
@@ -401,7 +438,8 @@ const Walk_existing = () => {
             confirmOnPause={true}
             endModal={{
               message: '산책을 종료할까요?',
-              subMessage: '코스를 끝까지 마치지 않으면\n꼬리콥터를 흔들 수 없어요.',
+              subMessage:
+                '코스를 끝까지 마치지 않으면\n꼬리콥터를 흔들 수 없어요.',
               confirmText: '계속하기',
               cancelText: '종료하기',
             }}
@@ -449,7 +487,10 @@ const Walk_existing = () => {
               const previewUrl = URL.createObjectURL(file);
               const saved = (savedRes as any)?.data ?? savedRes;
               const markingPhotoId =
-                saved?.id || saved?.markingPhotoId || saved?.data?.id || undefined;
+                saved?.id ||
+                saved?.markingPhotoId ||
+                saved?.data?.id ||
+                undefined;
 
               const payload = {
                 fileUrl,
@@ -459,12 +500,23 @@ const Walk_existing = () => {
                 ts: Date.now(),
                 markingPhotoId,
               };
-              sessionStorage.setItem('last_marking_photo', JSON.stringify(payload));
+              sessionStorage.setItem(
+                'last_marking_photo',
+                JSON.stringify(payload)
+              );
 
               try {
                 const KEY = 'marking_photos';
-                const item = { fileUrl, lat, lng, ts: payload.ts, markingPhotoId };
-                const prev: any[] = JSON.parse(localStorage.getItem(KEY) || '[]');
+                const item = {
+                  fileUrl,
+                  lat,
+                  lng,
+                  ts: payload.ts,
+                  markingPhotoId,
+                };
+                const prev: any[] = JSON.parse(
+                  localStorage.getItem(KEY) || '[]'
+                );
                 const exists = prev.some(
                   (p) =>
                     (markingPhotoId && p.markingPhotoId === markingPhotoId) ||
@@ -518,7 +570,11 @@ export default Walk_existing;
 // ---------------- utils ----------------
 
 function safeJsonParse(s: string) {
-  try { return JSON.parse(s); } catch { return null; }
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }
 
 // ✅ 코스 좌표 안전 추출
@@ -539,11 +595,13 @@ function extractCoursePath(course: any): Array<[number, number]> {
   if (Array.isArray(candidates) && candidates.length > 0) {
     const norm = candidates
       .map((p: any) => {
-        if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])] as [number, number];
+        if (Array.isArray(p) && p.length >= 2)
+          return [Number(p[0]), Number(p[1])] as [number, number];
         if (p && typeof p === 'object') {
           const lat = p.lat ?? p.latitude;
           const lng = p.lng ?? p.longitude;
-          if (lat != null && lng != null) return [Number(lat), Number(lng)] as [number, number];
+          if (lat != null && lng != null)
+            return [Number(lat), Number(lng)] as [number, number];
         }
         return null;
       })
@@ -555,7 +613,9 @@ function extractCoursePath(course: any): Array<[number, number]> {
   if (geo?.type === 'LineString' && Array.isArray(geo.coordinates)) {
     const norm = geo.coordinates
       .map((xy: any) =>
-        Array.isArray(xy) && xy.length >= 2 ? [Number(xy[1]), Number(xy[0])] as [number, number] : null
+        Array.isArray(xy) && xy.length >= 2
+          ? ([Number(xy[1]), Number(xy[0])] as [number, number])
+          : null
       )
       .filter(Boolean) as Array<[number, number]>;
     if (norm.length > 0) return norm;

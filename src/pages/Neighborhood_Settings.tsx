@@ -2,14 +2,11 @@ import { FaChevronLeft } from 'react-icons/fa';
 import { SlMagnifier } from 'react-icons/sl';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchLocations } from '../services/onboarding';
-import { updateProfile } from '../services/users';
 
-declare global {
-  interface Window {
-    kakao: any;
-  }
-}
+type KakaoPlace = {
+  address_name?: string;
+  road_address_name?: string;
+};
 
 type PlaceItem = {
   addressName: string;
@@ -27,51 +24,35 @@ const Neighborhood_Settings = () => {
   const [places, setPlaces] = useState<PlaceItem[]>([]);
 
   useEffect(() => {
+    // Kakao Maps SDK 로드 (이미 로드되어 있으면 스킵)
+    if (window.kakao?.maps?.services) return;
     const script = document.createElement('script');
     script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoApiKey}&libraries=services`;
-    script.async = false;
+    script.async = true;
     document.head.appendChild(script);
-  }, []);
+  }, [kakaoApiKey]);
 
-  const handleSearch = async (keyword: string) => {
+  const handleSearch = (keyword: string) => {
     if (!keyword) {
       setPlaces([]);
       return;
     }
-    try {
-      const res = await searchLocations(keyword);
-      const list = (res?.data ?? res ?? []) as any[];
+    if (!window.kakao?.maps?.services) return;
 
-      const normalized: PlaceItem[] = list.map((p: any) => {
-        const addressName = p.addressName ?? p.address_name ?? '';
-        const roadAddressName = p.roadAddressName ?? p.road_address_name ?? '';
-        return {
-          addressName,
-          roadAddressName,
-          locationId: p.locationId ?? p.location_id ?? p.id ?? null,
-          city: p.city,
-          areaName: p.areaName,
-          province: p.province,
-        };
-      });
-      setPlaces(normalized);
-    } catch {
-      if (window.kakao?.maps?.services) {
-        const ps = new window.kakao.maps.services.Places();
-        ps.keywordSearch(keyword, (data: any[], status: string) => {
-          if (status === window.kakao.maps.services.Status.OK) {
-            const normalized: PlaceItem[] = data.map((p: any) => ({
-              addressName: p.address_name ?? '',
-              roadAddressName: p.road_address_name ?? '',
-              locationId: null,
-            }));
-            setPlaces(normalized);
-          } else {
-            setPlaces([]);
-          }
-        });
+    const ps = new window.kakao.maps.services.Places();
+    ps.keywordSearch(keyword, (data: KakaoPlace[], status: string) => {
+      const ok = window.kakao?.maps?.services?.Status?.OK;
+      if (ok && status === ok) {
+        const normalized: PlaceItem[] = (data ?? []).map((p: KakaoPlace) => ({
+          addressName: p.address_name ?? '',
+          roadAddressName: p.road_address_name ?? '',
+          locationId: null,
+        }));
+        setPlaces(normalized);
+      } else {
+        setPlaces([]);
       }
-    }
+    });
   };
 
   const handleSelect = async (place: PlaceItem) => {
@@ -83,30 +64,12 @@ const Neighborhood_Settings = () => {
       place.city && place.areaName
         ? `${place.city} ${place.areaName}`
         : (() => {
-          const parts = address.split(' ');
-          return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : address;
-        })();
+            const parts = address.split(' ');
+            return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : address;
+          })();
 
     localStorage.setItem('selected_address_full', address);
     localStorage.setItem('selected_address_cityDistrict', cityDistrict);
-
-    const payload: any = {
-      preferredAddressFull: address,
-      preferredAddressCityDistrict: cityDistrict,
-    };
-    if (place.locationId) payload.preferredLocationId = place.locationId;
-
-    try {
-      await updateProfile(payload);
-    } catch (e) {
-      console.warn('updateProfile 실패:', e);
-    }
-
-    if (place.locationId) {
-      localStorage.setItem('selected_location_id', place.locationId);
-    } else {
-      localStorage.removeItem('selected_location_id');
-    }
 
     navigate('/animal_setting');
   };

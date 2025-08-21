@@ -51,7 +51,9 @@ const Walk_record_after_walk = () => {
           }
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: 'image/png' });
-          const file = new File([blob], 'map-capture.png', { type: 'image/png' });
+          const file = new File([blob], 'map-capture.png', {
+            type: 'image/png',
+          });
 
           // Presigned URL 생성
           const presignedRes = await createPresignedUrl({
@@ -75,8 +77,17 @@ const Walk_record_after_walk = () => {
         }
       }
 
-      if (walkRecordId) {
-        await saveWalkDiary(walkRecordId, {
+      const activeId = (() => {
+        if (walkRecordId) return walkRecordId;
+        try {
+          const ss = sessionStorage.getItem('active_walk_record_id');
+          if (ss) return ss;
+        } catch {}
+        return null;
+      })();
+
+      if (activeId) {
+        await saveWalkDiary(activeId, {
           title: null,
           walkDate: null,
           pathImageUrl: pathImageUrl || null,
@@ -104,12 +115,15 @@ const Walk_record_after_walk = () => {
 
       {/* 날짜 */}
       <p className="text-[22px] font-semibold mb-4">
-        {new Date().toLocaleDateString('ko-KR', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          weekday: 'short'
-        }).replace(/\. /g, '. ').replace(/\.$/, '')}
+        {new Date()
+          .toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            weekday: 'short',
+          })
+          .replace(/\. /g, '. ')
+          .replace(/\.$/, '')}
       </p>
 
       {/* 코스 제목 + 프로필 이미지 */}
@@ -131,7 +145,9 @@ const Walk_record_after_walk = () => {
       <div className="flex justify-around items-center text-center text-[14px] gap-6 mt-10 mb-10">
         <div>
           <p className="text-[#616160] mb-2">산책 거리</p>
-          <p className="font-semibold text-[16px]">{(distanceMeters / 1000).toFixed(2)}km</p>
+          <p className="font-semibold text-[16px]">
+            {(distanceMeters / 1000).toFixed(2)}km
+          </p>
         </div>
         <div>
           <p className="text-[#616160] mb-2">마킹 횟수</p>
@@ -160,8 +176,12 @@ const Walk_record_after_walk = () => {
           ) : (
             <div className="w-full h-full grid place-items-center text-center">
               <div>
-                <span className="text-gray-500 text-sm">지도 이미지가 없습니다</span>
-                <p className="text-gray-400 text-xs mt-2">산책 종료 시 지도가 캡처되지 않았습니다</p>
+                <span className="text-gray-500 text-sm">
+                  지도 이미지가 없습니다
+                </span>
+                <p className="text-gray-400 text-xs mt-2">
+                  산책 종료 시 지도가 캡처되지 않았습니다
+                </p>
               </div>
             </div>
           )}
@@ -173,10 +193,11 @@ const Walk_record_after_walk = () => {
         <button
           onClick={() => setShowSaveModal(true)}
           disabled={isSaved}
-          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${isSaved
+          className={`w-full py-3 rounded-xl text-[16px] font-semibold ${
+            isSaved
               ? 'bg-gray-400 text-white cursor-default'
               : 'bg-[#4FA65B] text-white cursor-pointer'
-            }`}
+          }`}
         >
           {isSaved ? '등록 완료' : '산책일지 저장하기'}
         </button>
