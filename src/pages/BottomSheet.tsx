@@ -120,7 +120,6 @@ export default function BottomSheet({ mapRef }: Props) {
   };
   const handleTouchMove = (e: React.TouchEvent) => {
     if (startY.current == null) return;
-    if (e.cancelable) e.preventDefault();
     const delta = e.touches[0].clientY - startY.current;
     const h = clamp(startHeight.current - delta, SNAP.PEEK, SNAP.FULL);
     setHeightPx(h);
@@ -229,6 +228,7 @@ export default function BottomSheet({ mapRef }: Props) {
             : `height ${DURATION}ms ${EASE}, box-shadow ${DURATION}ms ${EASE}`,
           willChange: 'height',
           overscrollBehavior: 'contain',
+          touchAction: dragging ? 'none' : 'auto',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
