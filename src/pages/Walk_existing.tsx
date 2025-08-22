@@ -18,6 +18,7 @@ import { endWalk, updateWalkTrack } from '../services/walks';
 import { createPresignedUrl, uploadToS3 } from '../services/upload';
 import { createMarkingPhoto } from '../services/marking';
 import { getCourseDetails, getCoursePhotozones } from '../services/courses';
+import WebcamCaptureModal from './WebcamCaptureModal';
 import CourseRecord from './CourseRecord';
 import MarkingPhotozone from './MarkingPhotozone';
 
@@ -75,6 +76,10 @@ const Walk_existing = () => {
     courseId?: string | number;
     photozoneId?: string;
   }>({ open: false });
+
+  // 웹캠/파일 선택 모달 상태
+  const [webcamOpen, setWebcamOpen] = useState(false);
+  const [pickModalOpen, setPickModalOpen] = useState(false);
 
   const incomingCourse =
     location?.state?.course ?? location?.state?.selectedCourse ?? null;
@@ -392,6 +397,136 @@ const Walk_existing = () => {
     [setPathCoordinates]
   );
 
+  // 공통 업로드 처리
+  const handleUploadFile = useCallback(
+    async (file: File) => {
+      const pos = mapRef.current?.getCurrentPosition?.();
+      const lat = pos?.lat;
+      const lng = pos?.lng;
+      if (!walkRecordId || lat == null || lng == null) return;
+
+      const pre = await createPresignedUrl({
+        fileName: file.name,
+        fileType: (file.type as any) || 'image/jpeg',
+        uploadType: 'marking',
+      });
+      const d = (pre as any)?.data ?? pre;
+      const uploadUrl = d?.data?.uploadUrl || d?.uploadUrl;
+      const fileUrl = d?.data?.fileUrl || d?.fileUrl;
+      if (uploadUrl) await uploadToS3(uploadUrl, file);
+      if (fileUrl) {
+        const savedRes = await createMarkingPhoto({
+          walkRecordId,
+          latitude: lat,
+          longitude: lng,
+          photoUrl: fileUrl,
+        });
+        console.info('[Walk_existing] marking created', {
+          walkRecordId,
+          lat,
+          lng,
+          fileUrl,
+          resp: savedRes,
+        });
+        setMarkingCount((c) => c + 1);
+
+        const previewUrl = URL.createObjectURL(file);
+        const saved = (savedRes as any)?.data ?? savedRes;
+        const markingPhotoId =
+          saved?.id || saved?.markingPhotoId || saved?.data?.id || undefined;
+
+        const payload = {
+          fileUrl,
+          previewUrl,
+          lat,
+          lng,
+          ts: Date.now(),
+          markingPhotoId,
+        };
+        sessionStorage.setItem('last_marking_photo', JSON.stringify(payload));
+
+        // 핀 즉시 반영 (기존 로직)
+        try {
+          const courseIdForNav =
+            incomingCourseId ||
+            ssCourseId ||
+            (selectedCourse as any)?.id ||
+            (selectedCourse as any)?.course_id ||
+            (selectedCourse as any)?.courseId ||
+            null;
+
+          const photozoneId =
+            saved?.data?.photozoneId ||
+            saved?.data?.photozone_id ||
+            saved?.photozoneId ||
+            saved?.photozone_id ||
+            null;
+
+          if (courseIdForNav) {
+            try {
+              const pzRes2 = await getCoursePhotozones(courseIdForNav);
+              const pzData2: any = (pzRes2 as any)?.data ?? pzRes2;
+              const list2 =
+                pzData2?.data?.photozones ||
+                pzData2?.photozones ||
+                pzData2?.data ||
+                [];
+              if (Array.isArray(list2)) {
+                if (
+                  photozoneId &&
+                  !list2.some(
+                    (p: any) => (p.photozone_id || p.id) === photozoneId
+                  )
+                ) {
+                  list2.push({
+                    photozone_id: photozoneId,
+                    latitude: lat,
+                    longitude: lng,
+                  });
+                }
+                setCoursePhotozones(list2);
+              }
+            } catch (e) {
+              if (photozoneId) {
+                setCoursePhotozones((prev: any[]) => {
+                  if (
+                    prev.some((p) => (p.photozone_id || p.id) === photozoneId)
+                  )
+                    return prev;
+                  return [
+                    ...prev,
+                    {
+                      photozone_id: photozoneId,
+                      latitude: lat,
+                      longitude: lng,
+                    },
+                  ];
+                });
+              }
+            }
+          } else if (photozoneId) {
+            setCoursePhotozones((prev: any[]) => {
+              if (prev.some((p) => (p.photozone_id || p.id) === photozoneId))
+                return prev;
+              return [
+                ...prev,
+                { photozone_id: photozoneId, latitude: lat, longitude: lng },
+              ];
+            });
+          }
+        } catch {}
+      }
+    },
+    [
+      mapRef,
+      walkRecordId,
+      incomingCourseId,
+      ssCourseId,
+      selectedCourse,
+      setMarkingCount,
+    ]
+  );
+
   // 기준 위치 가져오기
   const getBasePosition = useCallback((): { lat: number; lng: number } => {
     const fallback = currentLocation ?? { lat: 37.545354, lng: 126.952576 };
@@ -572,7 +707,7 @@ const Walk_existing = () => {
         markRequested={markRequested}
         onMarkHandled={async () => {
           setMarkRequested(false);
-          fileInputRef.current?.click();
+          setPickModalOpen(true);
         }}
         drawingEnabled={true}
         onDistanceChange={(d) => setDistance(d)}
@@ -667,6 +802,52 @@ const Walk_existing = () => {
         </div>
       )}
 
+      {/* 사진 선택 방식 모달 */}
+      {pickModalOpen && (
+        <div className="fixed inset-0 z-[72] bg-black/40 flex items-end justify-center">
+          <div className="bg-white w-full max-w-[430px] rounded-t-2xl p-4">
+            <div className="text-center text-sm text-gray-600 mb-3">
+              사진을 어떻게 추가할까요?
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                className="w-full py-3 rounded-xl bg-[#4FA65B] text-white"
+                onClick={() => {
+                  setPickModalOpen(false);
+                  setWebcamOpen(true);
+                }}
+              >
+                웹캠으로 촬영
+              </button>
+              <button
+                className="w-full py-3 rounded-xl bg-gray-100"
+                onClick={() => {
+                  setPickModalOpen(false);
+                  fileInputRef.current?.click();
+                }}
+              >
+                파일에서 선택
+              </button>
+              <button
+                className="w-full py-3 rounded-xl bg-white border"
+                onClick={() => setPickModalOpen(false)}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 웹캠 촬영 모달 */}
+      <WebcamCaptureModal
+        open={webcamOpen}
+        onClose={() => setWebcamOpen(false)}
+        onCapture={(file) => {
+          handleUploadFile(file);
+        }}
+      />
+
       {/* 마킹 사진 업로드 인풋 (숨김) */}
       <input
         ref={fileInputRef}
@@ -678,139 +859,7 @@ const Walk_existing = () => {
           const inputElement = e.currentTarget;
           if (!file) return;
           try {
-            const pos = mapRef.current?.getCurrentPosition?.();
-            const lat = pos?.lat;
-            const lng = pos?.lng;
-            if (!walkRecordId || lat == null || lng == null) return;
-
-            const pre = await createPresignedUrl({
-              fileName: file.name,
-              fileType: (file.type as any) || 'image/jpeg',
-              uploadType: 'marking',
-            });
-            const d = (pre as any)?.data ?? pre;
-            const uploadUrl = d?.data?.uploadUrl || d?.uploadUrl;
-            const fileUrl = d?.data?.fileUrl || d?.fileUrl;
-            if (uploadUrl) await uploadToS3(uploadUrl, file);
-            if (fileUrl) {
-              const savedRes = await createMarkingPhoto({
-                walkRecordId,
-                latitude: lat,
-                longitude: lng,
-                photoUrl: fileUrl,
-              });
-              console.info('[Walk_existing] marking created', {
-                walkRecordId,
-                lat,
-                lng,
-                fileUrl,
-                resp: savedRes,
-              });
-              setMarkingCount((c) => c + 1);
-
-              const previewUrl = URL.createObjectURL(file);
-              const saved = (savedRes as any)?.data ?? savedRes;
-              const markingPhotoId =
-                saved?.id ||
-                saved?.markingPhotoId ||
-                saved?.data?.id ||
-                undefined;
-
-              const payload = {
-                fileUrl,
-                previewUrl,
-                lat,
-                lng,
-                ts: Date.now(),
-                markingPhotoId,
-              };
-              sessionStorage.setItem(
-                'last_marking_photo',
-                JSON.stringify(payload)
-              );
-
-              // 업로드 성공 후에는 라우팅하지 않음. 산책 흐름 유지
-              // 로컬스토리지에 마킹/포토존 정보를 쓰지 않음
-
-              // ✅ 핀 즉시 반영: 서버 재조회 후, 실패 시 로컬 추가(fallback)
-              try {
-                const courseIdForNav =
-                  incomingCourseId ||
-                  ssCourseId ||
-                  (selectedCourse as any)?.id ||
-                  (selectedCourse as any)?.course_id ||
-                  (selectedCourse as any)?.courseId ||
-                  null;
-
-                const photozoneId =
-                  saved?.data?.photozoneId ||
-                  saved?.data?.photozone_id ||
-                  saved?.photozoneId ||
-                  saved?.photozone_id ||
-                  null;
-
-                if (courseIdForNav) {
-                  try {
-                    const pzRes2 = await getCoursePhotozones(courseIdForNav);
-                    const pzData2: any = (pzRes2 as any)?.data ?? pzRes2;
-                    const list2 =
-                      pzData2?.data?.photozones ||
-                      pzData2?.photozones ||
-                      pzData2?.data ||
-                      [];
-                    if (Array.isArray(list2)) {
-                      if (
-                        photozoneId &&
-                        !list2.some(
-                          (p: any) => (p.photozone_id || p.id) === photozoneId
-                        )
-                      ) {
-                        list2.push({
-                          photozone_id: photozoneId,
-                          latitude: lat,
-                          longitude: lng,
-                        });
-                      }
-                      setCoursePhotozones(list2);
-                    }
-                  } catch (e) {
-                    if (photozoneId) {
-                      setCoursePhotozones((prev: any[]) => {
-                        if (
-                          prev.some(
-                            (p) => (p.photozone_id || p.id) === photozoneId
-                          )
-                        )
-                          return prev;
-                        return [
-                          ...prev,
-                          {
-                            photozone_id: photozoneId,
-                            latitude: lat,
-                            longitude: lng,
-                          },
-                        ];
-                      });
-                    }
-                  }
-                } else if (photozoneId) {
-                  setCoursePhotozones((prev: any[]) => {
-                    if (
-                      prev.some((p) => (p.photozone_id || p.id) === photozoneId)
-                    )
-                      return prev;
-                    return [
-                      ...prev,
-                      {
-                        photozone_id: photozoneId,
-                        latitude: lat,
-                        longitude: lng,
-                      },
-                    ];
-                  });
-                }
-              } catch {}
-            }
+            await handleUploadFile(file);
           } catch (err) {
             console.error('마킹 업로드 실패:', err);
           } finally {
