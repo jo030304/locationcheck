@@ -40,31 +40,94 @@ function GlobalLocationTracker() {
   useEffect(() => {
     if (!navigator.geolocation) return;
 
+    const getPos = (opts: PositionOptions) =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+      });
+
     console.log('🌍 전역 위치 추적 시작');
-    const watcherId = navigator.geolocation.watchPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        setCurrentLocation({ lat, lng });
-        console.log('📍 전역 위치 업데이트:', { lat, lng });
-      },
-      (error) => {
-        console.warn('⚠️ 전역 위치 추적 오류:', error.message);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+
+    let pollTimer: number | undefined;
+
+    (async () => {
+      // 1) iOS Safari 대비: 먼저 getCurrentPosition으로 권한/초기 fix 시도
+      try {
+        const p1 = await getPos({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+        setCurrentLocation({
+          lat: p1.coords.latitude,
+          lng: p1.coords.longitude,
+        });
+      } catch (e1) {
+        // 고정밀 실패 시 저정밀 재시도
+        try {
+          const p2 = await getPos({
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: 30000,
+          });
+          setCurrentLocation({
+            lat: p2.coords.latitude,
+            lng: p2.coords.longitude,
+          });
+        } catch (e2) {
+          console.warn('⚠️ 초기 위치 획득 실패 (getCurrentPosition)', e2);
+        }
       }
-    );
 
-    setLocationWatcherId(watcherId);
+      // 2) 지속 추적 시작
+      const watcherId = navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCurrentLocation({ lat, lng });
+          // iOS 일부 환경: watch 실패 대비 폴링 중이면 중단
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = undefined;
+          }
+        },
+        (error) => {
+          console.warn('⚠️ 전역 위치 추적 오류:', error.message);
+          // iOS Safari/Chrome 일부 케이스: watchPosition이 불안정 → 폴링으로 보완
+          if (!pollTimer) {
+            pollTimer = window.setInterval(async () => {
+              try {
+                const p = await getPos({
+                  enableHighAccuracy: false,
+                  timeout: 20000,
+                  maximumAge: 10000,
+                });
+                setCurrentLocation({
+                  lat: p.coords.latitude,
+                  lng: p.coords.longitude,
+                });
+              } catch {
+                // 무시, 다음 주기 재시도
+              }
+            }, 8000);
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 20000,
+          maximumAge: 10000,
+        }
+      );
 
-    return () => {
-      console.log('🧹 전역 위치 추적 종료');
-      navigator.geolocation.clearWatch(watcherId);
-      setLocationWatcherId(undefined);
-    };
+      setLocationWatcherId(watcherId);
+
+      // 정리
+      return () => {
+        console.log('🧹 전역 위치 추적 종료');
+        if (pollTimer) clearInterval(pollTimer);
+        navigator.geolocation.clearWatch(watcherId);
+        setLocationWatcherId(undefined);
+      };
+    })();
   }, []);
 
   return null;

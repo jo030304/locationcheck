@@ -10,6 +10,7 @@ import MyLocationButton from './MyLocationButton';
 // KakaoMap 핸들 타입 간소 선언(실제 export 없음): 필요한 메서드만 명시
 type KakaoMapHandle = {
   moveToMyLocation?: () => void;
+  updatePosition?: (lat: number, lng: number) => void;
 };
 import Profile from '../hooks/Profile';
 
@@ -178,7 +179,24 @@ export default function BottomSheet({ mapRef }: Props) {
 
   // 지도 이동 버튼 액션
   const handleMoveToMyLocation = () => {
-    mapRef?.current?.moveToMyLocation?.();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          // iOS Safari 권한/정밀 위치 허용 후 즉시 좌표 반영
+          mapRef?.current?.updatePosition?.(lat, lng);
+          mapRef?.current?.moveToMyLocation?.();
+        },
+        () => {
+          // 실패 시 카메라만 이동 시도(이미 전역 위치가 있다면 반영)
+          mapRef?.current?.moveToMyLocation?.();
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+      );
+    } else {
+      mapRef?.current?.moveToMyLocation?.();
+    }
   };
 
   return (
