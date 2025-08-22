@@ -30,6 +30,7 @@ type EndModalOptions = {
 type MapRefLike = {
   current?: {
     captureMap?: () => Promise<string | null> | string | null;
+    getStaticMapUrl?: () => string | null;
   } | null;
 };
 
@@ -105,13 +106,22 @@ const Operator = ({
       return;
     }
 
-    // 지도 캡처
+    // 지도 캡처 (모바일 크롬/사파리 실패 시 정적 맵 대체)
     if (mapRef?.current && typeof mapRef.current.captureMap === 'function') {
       try {
         const capturedImage = await mapRef.current.captureMap();
         if (capturedImage) setMapCaptureImage(capturedImage);
+        else if (typeof mapRef.current.getStaticMapUrl === 'function') {
+          const staticUrl = mapRef.current.getStaticMapUrl();
+          if (staticUrl) setMapCaptureImage(staticUrl);
+        }
       } catch (error) {
-        console.error('지도 캡처 중 오류:', error);
+        if (typeof mapRef.current.getStaticMapUrl === 'function') {
+          const staticUrl = mapRef.current.getStaticMapUrl();
+          if (staticUrl) setMapCaptureImage(staticUrl);
+        } else {
+          console.error('지도 캡처 중 오류:', error);
+        }
       }
     }
 

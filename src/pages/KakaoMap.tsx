@@ -212,7 +212,7 @@ const KakaoMap = forwardRef(function KakaoMap(
     progressPolylineRef.current.setMap(mapRef.current);
   };
 
-  // ----- 지도 캡처 (기존 로직 유지) -----
+  // ----- 지도 캡처 (모바일/권한 이슈 대비 타임아웃 + 기능감지 포함) -----
   const captureMap = async (): Promise<string | null> => {
     if (!mapContainerRef.current || !mapRef.current) return null;
     try {
@@ -221,13 +221,41 @@ const KakaoMap = forwardRef(function KakaoMap(
         await new Promise((r) => setTimeout(r, 500));
       }
       try {
+        // iOS / 모바일 크롬(WebKit) 환경이나 미지원 환경에서는 라이브 스크린샷을 건너뜀
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        const isIOS =
+          /iPad|iPhone|iPod/.test(ua) ||
+          (typeof navigator !== 'undefined' &&
+            (navigator as any).platform === 'MacIntel' &&
+            (navigator as any).maxTouchPoints > 1);
+        const hasGetDisplayMedia =
+          typeof navigator !== 'undefined' &&
+          (navigator as any).mediaDevices &&
+          typeof (navigator as any).mediaDevices.getDisplayMedia === 'function';
+
+        if (!hasGetDisplayMedia || isIOS) {
+          throw new Error('라이브 스크린샷 미지원 환경');
+        }
+
         const controls =
           mapContainerRef.current.querySelectorAll('[class*="control"]');
         controls.forEach((el: any) => (el.style.display = 'none'));
         if (childrenWrapperRef.current)
           childrenWrapperRef.current.style.display = 'none';
         await new Promise((r) => setTimeout(r, 100));
-        const screenshot = await takeScreenshot();
+
+        // 타임아웃 레이스(권한 프롬프트가 안 뜨고 멈추는 이슈 대비)
+        const TIMEOUT_MS = 2500;
+        const screenshot = await Promise.race<string | null>([
+          (async () => await takeScreenshot())(),
+          new Promise<string | null>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('screenshot-timeout')),
+              TIMEOUT_MS
+            )
+          ),
+        ]);
+
         controls.forEach((el: any) => (el.style.display = ''));
         if (childrenWrapperRef.current)
           childrenWrapperRef.current.style.display = '';
